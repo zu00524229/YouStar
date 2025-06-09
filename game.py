@@ -12,12 +12,16 @@ response = requests.post(LOGIN_URL, json = {
     "username": username,
     "password": password
 })
-
+assigned_server = None
 if response.status_code == 200:
     data = response.json()
-    assigend_server = data["assigned_server"]
-    print(f"[前端]登入成功，分配到 GameServer: {assigend_server}")
-    game_state = "playing"
+    if "assigned_server" in data:
+        assigned_server = data["assigned_server"]
+        print(f"[前端]登入成功，分配到 GameServer: {assigned_server}")
+        game_state = "playing"
+    else:
+        print(f"[前端]等待中... {data}")
+        game_state = "waiting"
 else:
     print(f"[前端]Loading...{response.text}")
     game_state = "waiting"
@@ -63,7 +67,7 @@ MOLE_TYPES = [
     {"name": "普通地鼠", "color": (200, 100, 100), "score": +1},
     {"name": "黃金地鼠", "color": (255, 215, 0), "score": +5},
     {"name": "炸彈地鼠", "color": (bomb), "score": -3},
-    {"name": "賭博地鼠", "color": (128, 0, 128), "score": 0, "score_range": (-7, 10)},
+    {"name": "賭博地鼠", "color": (128, 0, 128), "score": 0, "score_range": (-7, 15)},
 ]
 
 # 遊戲狀態變數
@@ -75,6 +79,7 @@ start_time = time.time()  # 遊戲開始時間
 game_duration = 60        # 遊戲總時間 (秒)
 game_state = "playing"
 remaining_wait_time = 10
+leaderboard_data = []     # 排行榜
 
 
 # 地鼠下一次出現時間 → 初始化為 1 秒後
@@ -148,9 +153,45 @@ while running:
             game_over_surface = big_font.render("Time out", True, (255, 0, 0))  # 紅字提示
             text_rect = game_over_surface.get_rect(center = (width / 2, height / 2))
             screen.blit(game_over_surface, text_rect)
+            screen.fill((black))  # 清空畫面
+
+             # 調用排行榜
+            if assigned_server:
+                print("[前端] 取得排行榜中...")
+                try:
+                    response = requests.get("http://127.0.0.1:8000/get_leaderboard", params={
+                        "gameserver_url": assigned_server  
+                    })
+                    if response.status_code == 200:
+                        leaderboard_data = response.json()["leaderboard"]
+                        print("[前端] getTop!", leaderboard_data)
+                    else:
+                        print("[前端] NotTop!", response.text)
+
+                except Exception as e:
+                    print("[前端] 取得排行榜異常", e)
+            else:
+                print("[前端] 沒有 assigned_server，略過排行榜")
+
+            # 顯示排行榜畫面
+            leaderboard_surface = big_font.render("Leaderboard", True, white)
+            leaderboard_rect = leaderboard_surface.get_rect(center = (width / 2, 50))
+            screen.blit(leaderboard_surface, leaderboard_rect)
+            
+
+            # 顯示前 5 名
+            for idx, entry in enumerate(leaderboard_data[:5]):
+                text = f"{idx+1}. {entry['username']} - {entry['score']}"
+                entry_surface = font.render(text, True, white)
+                screen.blit(entry_surface, (width / 2 - 150, 100 + idx * 50))
+
+            # 顯示最終分數
+            final_score_surface = font.render(f"Final Score: {score}", True, white)
+            final_score_rect = final_score_surface.get_rect(center = (width / 2, height / 2 + 120))
+            screen.blit(final_score_surface, final_score_rect)
 
             tip_surface = font.render("exit", True, (white))
-            tip_rect = tip_surface.get_rect(center = (width / 2, height / 2 + 80))
+            tip_rect = tip_surface.get_rect(center = (width / 2, height / 2 + 180))
             screen.blit(tip_surface, tip_rect)
             pg.display.flip()
             # pg.time.wait(3000)  # 停留 3 秒

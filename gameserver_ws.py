@@ -1,4 +1,4 @@
-# GameServer 本體 → 提供 /ws endpoint → 玩家可以連線
+# GameServer 本體 
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import uvicorn

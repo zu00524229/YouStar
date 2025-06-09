@@ -87,6 +87,12 @@ async def register_gameserver(websocket: WebSocket):
         while True:
             msg = await websocket.receive_text()
 
+            if msg == "ping":
+                # 更新
+                gameserver_status[data]["last_heartbeat"] = time.time()
+                print(f"[Ping] GameServer {data} ping")
+                continue  
+
             # 假設 GameServer 傳 JSON 格式 status_update
             try:
                 status_update = json.loads(msg)
@@ -123,3 +129,11 @@ def player_offline(request: PlayerOfflineRequest):
         return {"message": "玩家離線狀態已清除"}
     else:
         return {"message": "玩家不在在線狀態表中"}
+
+@app.get("/get_leaderboard")
+def get_leaderboard(gameserver_url: str):
+    if gameserver_url in gameserver_status:
+        leaderboard = gameserver_status[gameserver_url]["leaderboard"]
+        return {"leaderboard": leaderboard}
+    else:
+        raise HTTPException(status_code=404, detail="GameServer 未找到")
