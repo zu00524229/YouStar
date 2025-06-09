@@ -8,11 +8,15 @@ LOGIN_URL = "http://127.0.0.1:8000/login"
 username = "player1"
 password = "1234"
 
-response = requests.post(LOGIN_URL, json = {
-    "username": username,
-    "password": password
-})
 assigned_server = None
+
+# 自動輪詢 login
+while assigned_server is None:
+    response = requests.post(LOGIN_URL, json={
+        "username": username,
+        "password": password
+    })
+
 if response.status_code == 200:
     data = response.json()
     if "assigned_server" in data:
@@ -22,9 +26,12 @@ if response.status_code == 200:
     else:
         print(f"[前端]等待中... {data}")
         game_state = "waiting"
+
+        time.sleep(3) # 等待3秒在retry login
 else:
     print(f"[前端]Loading...{response.text}")
     game_state = "waiting"
+    time.sleep(3) # 等待3秒在retry login
 
 
 # 初始化 pygame
@@ -203,11 +210,17 @@ while running:
                         waiting_for_exit = False    # 關閉
                     elif event.type == pg.MOUSEBUTTONUP:
                         waiting_for_exit = False
-            running = False  # 跳出主迴圈，結束遊戲
+                        
+            running = False  
+            # 跳出主迴圈，結束遊戲
+
+            print("[前端] 遊戲結束，通知 player_offline")
+            requests.post("http://127.0.0.1:8000/player_offline", json={
+                "username": username
+            })
 
     # 更新畫面
     pg.display.flip()
     clock.tick(60)  # 每秒最多跑 60 FPS → 流暢更新畫面
-
 # 關閉 pygame
 pg.quit()
