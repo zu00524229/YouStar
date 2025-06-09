@@ -35,7 +35,7 @@ async def register_to_control_server():
                 else:
                     in_game = True
                     current_players = 1
-                    remaining_time = 30
+                    remaining_time = 6
                     leaderboard = []
 
                 status_update = {
