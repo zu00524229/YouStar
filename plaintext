@@ -1,0 +1,6 @@
+GameServer1 (G1) -- WebSocket --> 中控Server
+GameServer2 (G2) -- WebSocket --> 中控Server
+
+玩家Login  -->  中控Server驗證帳密，選定GameServer --> 告訴玩家 ws://G1/ws 或 ws://G2/ws
+
+玩家 -- WebSocket --> G1 or G2，開始打地鼠
