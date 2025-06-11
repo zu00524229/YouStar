@@ -1,7 +1,7 @@
 import asyncio
 import websockets
 import json
-import time
+# import time
 
 # 中控 Server 的 WebSocket 註冊網址
 REGISTER_URL = "ws://127.0.0.1:8000/register_gameserver"
@@ -39,10 +39,10 @@ async def register_to_control_server():
                     leaderboard = []
 
                 status_update = {
-                    "current_players": current_players,
-                    "in_game": in_game,
-                    "remaining_time": remaining_time,
-                    "leaderboard": leaderboard
+                    "current_players": current_players,     # 目前玩家人數
+                    "in_game": in_game,                     # True 正在遊戲中 / False 遊戲尚未開始
+                    "remaining_time": remaining_time,       # 剩餘時間
+                    "leaderboard": leaderboard              # '用戶名': '玩家1', '分數': 55
                 }
                 await websocket.send(json.dumps(status_update))
                 print("[GameServer] 發送狀態更新", status_update)
@@ -52,8 +52,17 @@ async def register_to_control_server():
 
                 await asyncio.sleep(5)
 
-        except KeyboardInterrupt:
-            print("GameServer 手動中斷連線")
+        except websockets.exceptions.ConnectionClosedError as e:
+            print(f"⚠️ WebSocket 斷線 (code {e.code}): {e.reason}，3 秒後重試...")
+            await asyncio.sleep(3)
+
+        except ConnectionRefusedError:
+            print(f"❌ 無法連線到 {REGISTER_URL}，3 秒後重試...")
+            await asyncio.sleep(3)
+
+        except Exception as e:
+            print(f"❌ 發生錯誤：{e}，3 秒後重試...")
+            await asyncio.sleep(3)
 
 
 if __name__ == "__main__":
