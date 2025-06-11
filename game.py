@@ -7,8 +7,8 @@ import threading
 
 LOGIN_URL = "http://127.0.0.1:8000/login"
 
-username = "player1"
-password = "1234"
+username = "player2"
+password = "5678"
 
 assigned_server = None
 ws = None  # WebSocket 全域變數
@@ -31,7 +31,7 @@ def ws_receiver():
 
 # 加一個同步等待 loadingTime
 def wait_for_loading():
-    global remaining_wait_time, game_state
+    global remaining_wait_time, game_state, start_time
     while True:
         try:
             response = requests.get("http://127.0.0.1:8000/get_gameserver_status", params={
@@ -39,15 +39,30 @@ def wait_for_loading():
             })
             if response.status_code == 200:
                 status = response.json()
-                print(f"[前端] 取得 GameServer 狀態: {status}")
+                # print(f"[前端] 取得 GameServer 狀態: {status}")
 
-                if not status["in_game"]:
-                    remaining_wait_time = status["remaining_time"]
+                # if not status["in_game"]:
+                #     remaining_wait_time = status["remaining_time"]
+                #     game_state = "waiting"
+                # else:
+                #     print("[前端] GameServer 已進入遊戲，開始 playing")
+                #     game_state = "playing"
+                #     return  # 退出 thread → 讓主迴圈 playing
+                game_phase = status.get("game_phase", "waiting")
+                remaining_wait_time = status.get("remaining_time", 0)
+
+                if game_phase == "waiting" or game_phase == "loading":
                     game_state = "waiting"
-                else:
+
+                elif game_phase == "ready":
+                    game_state = "ready"
+
+                elif game_phase == "playing":
                     print("[前端] GameServer 已進入遊戲，開始 playing")
                     game_state = "playing"
-                    return  # 退出 thread → 讓主迴圈 playing
+                    start_time = time.time()
+                    return  # Ready → Playing → 開始遊戲
+
             else:
                 print(f"[前端] 無法取得 GameServer 狀態: {response.text}")
         except Exception as e:
@@ -147,6 +162,12 @@ while running:
         waiting_surface = font.render(f"Loading..{remaining_wait_time} s", True, (white))
         waiting_rect = waiting_surface.get_rect(center=(width / 2, height / 2))
         screen.blit(waiting_surface, waiting_rect)
+
+    elif game_state == "ready":
+        # 新增 Ready 畫面！
+        ready_surface = big_font.render("Ready!", True, (255, 255, 0))
+        ready_rect = ready_surface.get_rect(center=(width / 2, height / 2))
+        screen.blit(ready_surface, ready_rect)
 
     elif game_state == "playing":
         screen.fill((black))
