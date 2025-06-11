@@ -42,10 +42,20 @@ async def player_ws(websocket: WebSocket):
     print(f"[GameServer] 玩家 {username} 連線進來")
     connected_players.add(username)
 
+    async def mole_sender():
+        while True:
+            try:
+                await websocket.send_text("地鼠出現!")
+                await asyncio.sleep(5)
+            except:
+                break
+
+    mole_task = asyncio.create_task(mole_sender())
+
     try:
         while True:
-            await websocket.send_text("地鼠出現!")
-            await asyncio.sleep(5)
+            # await websocket.send_text("地鼠出現!")
+            # await asyncio.sleep(5)
 
             msg = await websocket.receive_text()
             print(f"[GameServer] 收到玩家 {username} 訊息: {msg}")
@@ -56,6 +66,12 @@ async def player_ws(websocket: WebSocket):
                 mole_name = parts[1]
                 player_score = int(parts[2])
                 print(f"[GameServer] 玩家 {username} 打中 {mole_name}，目前分數 {player_score}")
+
+                # 更新 leaderboard
+                current_best = leaderboard.get(username, 0)
+                if player_score > current_best:
+                    leaderboard[username] = player_score
+                    print(f"[GameServer] 更新 {username} 的最高分為 {player_score}")
 
             # 玩家遊戲結束送最終分數
             elif msg.startswith("final:"):
@@ -70,7 +86,10 @@ async def player_ws(websocket: WebSocket):
                     leaderboard[final_user] = final_score
                     print(f"[GameServer] 更新 {final_user} 的最高分為 {final_score}")
 
-            await websocket.send_text(f"收到你的訊息: {msg}")
+            try:
+                await websocket.send_text(f"收到: {msg}")
+            except:
+                pass
 
     except WebSocketDisconnect:
         print(f"[GameServer] 玩家 {username} 離線")
@@ -79,6 +98,8 @@ async def player_ws(websocket: WebSocket):
             requests.post(CONTROL_PLAYER_OFFLINE_URL, json={"username": username})
         except Exception as e:
             print(f"[GameServer] 通知中控失敗: {e}")
+    finally:
+        mole_task.cancel()  # 保證斷線後關掉 background 地鼠發送
 
 # 註冊自己到中控 + 定期回報狀態
 async def register_to_control():
