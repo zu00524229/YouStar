@@ -2,73 +2,141 @@ import pygame as pg
 import random
 import time
 import requests
-import websocket
+import websockets
 import threading
+import json
+import asyncio
 
 LOGIN_URL = "http://127.0.0.1:8000/login"
 
-username = "player2"
-password = "5678"
+username = "player1"
+password = "1234"
 
 assigned_server = None
-ws = None  # WebSocket 全域變數
+ws_conn = None  # async websockets connection
+loop = asyncio.get_event_loop()
 
-# 建立 WebSocket Receiver Thread
-def ws_receiver():
-    global ws
+# 地鼠同步資料
+current_mole_id = -1
+current_mole_position = -1
+current_mole_type_name = ""
+mole_active = False
+
+# 遊戲狀態資料
+game_state = "waiting"
+remaining_wait_time = 10
+loading_time = 0
+start_time = time.time()
+score = 0
+leaderboard_data = []
+
+# 地鼠 receiver (async)
+async def ws_receiver_async():
+    global ws_conn
+    global current_mole_id, current_mole_position, current_mole_type_name, mole_active
+
     try:
-        ws = websocket.WebSocket()
-        ws.connect(assigned_server)
-        print("[前端] WebSocket 連線成功")
-        ws.send(username)  # 傳 username
+        async with websockets.connect(
+            assigned_server,
+            origin="http://localhost"
+        ) as websocket_mole:
+            ws_conn = websocket_mole
+            print("[前端] WebSocket 連線成功")
 
-        while True:
-            msg = ws.recv()
-            print(f"[前端] 收到 GameServer 訊息: {msg}")
+            await websocket_mole.send(username)
+
+            while True:
+                msg = await websocket_mole.recv()
+
+                try:
+                    data = json.loads(msg)
+                    if data.get("event") == "mole_update":
+                        mole = data["mole"]
+                        current_mole_id = mole["mole_id"]
+                        current_mole_position = mole["position"]
+                        current_mole_type_name = mole["mole_type"]
+                        mole_active = mole["active"]
+
+                        print(f"[前端] 同步地鼠 → ID: {current_mole_id}, pos: {current_mole_position}, type: {current_mole_type_name}, active: {mole_active}")
+
+                except:
+                    print(f"[前端] 收到非 json 訊息: {msg}")
 
     except Exception as e:
         print(f"[前端] WebSocket 錯誤: {e}")
 
-# 加一個同步等待 loadingTime
-def wait_for_loading():
-    global remaining_wait_time, game_state, start_time
-    while True:
-        try:
-            response = requests.get("http://127.0.0.1:8000/get_gameserver_status", params={
-                "gameserver_url": assigned_server
-            })
-            if response.status_code == 200:
-                status = response.json()
-                # print(f"[前端] 取得 GameServer 狀態: {status}")
+# 發 final score
+async def send_final_score():
+    global ws_conn
+    try:
+        await ws_conn.send(f"final:{username}:{score}")
+        print(f"[前端] 發送 final:{username}:{score} 給 GameServer")
+        await ws_conn.close()
+        print("[前端] WebSocket 已關閉")
+    except Exception as e:
+        print(f"[前端] 發送 final 時出錯: {e}")
 
-                # if not status["in_game"]:
-                #     remaining_wait_time = status["remaining_time"]
-                #     game_state = "waiting"
-                # else:
-                #     print("[前端] GameServer 已進入遊戲，開始 playing")
-                #     game_state = "playing"
-                #     return  # 退出 thread → 讓主迴圈 playing
-                game_phase = status.get("game_phase", "waiting")
-                remaining_wait_time = status.get("remaining_time", 0)
+# status_ws_receiver
+async def status_ws_receiver_async():
+    global game_state, start_time, remaining_wait_time, loading_time
+    last_phase = ""
+    last_remaining_time = -1
+    last_loading_time = -1
 
-                if game_phase == "waiting" or game_phase == "loading":
-                    game_state = "waiting"
+    try:
+        async with websockets.connect(
+            assigned_server.replace("/ws", "/status_ws"),
+            origin="http://localhost"
+        ) as websocket_status:
+            print("[前端] Status WebSocket 連線成功")
 
-                elif game_phase == "ready":
-                    game_state = "ready"
+            while True:
+                msg = await websocket_status.recv()
 
-                elif game_phase == "playing":
-                    print("[前端] GameServer 已進入遊戲，開始 playing")
-                    game_state = "playing"
-                    start_time = time.time()
-                    return  # Ready → Playing → 開始遊戲
+                data = json.loads(msg)
+                game_phase = data.get("game_phase", "waiting")
+                loading_time = data.get("loading_time", 0)
+                remaining_wait_time = data.get("remaining_time", 0)
 
-            else:
-                print(f"[前端] 無法取得 GameServer 狀態: {response.text}")
-        except Exception as e:
-            print(f"[前端] 輪詢 GameServer 狀態異常: {e}")
+                if game_phase != last_phase:
+                    print(f"[前端][Status WS] GameServer 進入 {game_phase} phase")
+                    last_phase = game_phase
 
-        time.sleep(1)
+                    if game_phase == "waiting":
+                        game_state = "waiting"
+                        start_time = time.time()
+                    elif game_phase == "loading":
+                        game_state = "loading"
+                        start_time = time.time()
+                    elif game_phase == "ready":
+                        game_state = "ready"
+                        start_time = time.time()
+                    elif game_phase == "playing":
+                        print("[前端][Status WS] GameServer 已進入遊戲，開始 playing")
+                        game_state = "playing"
+                        start_time = time.time()
+
+                # 只有 loading_time 改變時才印
+                if game_phase == "loading":
+                    if loading_time != last_loading_time:
+                        print(f"[前端][Status WS] loading_time: {loading_time}")
+                        last_loading_time = loading_time
+
+                # 只有 playing_time_left 改變時才印
+                if game_phase == "playing":
+                    if remaining_wait_time != last_remaining_time:
+                        print(f"[前端][Status WS] playing_time_left: {remaining_wait_time}")
+                        last_remaining_time = remaining_wait_time
+
+    except Exception as e:
+        print(f"[前端][Status WS] WebSocket 錯誤: {e}")
+
+# 包 async runner
+async def run_ws_receiver():
+    await ws_receiver_async()
+
+async def run_status_ws_receiver():
+    await status_ws_receiver_async()
 
 # 自動輪詢 login
 while assigned_server is None:
@@ -82,16 +150,11 @@ while assigned_server is None:
         if "assigned_server" in data:
             assigned_server = data["assigned_server"]
             print(f"[前端] 登入成功，分配到 GameServer: {assigned_server}")
-            # game_state = "playing"
 
-             # 一開始是 waiting，讓 wait_for_loading 自己改成 playing
             game_state = "waiting"
 
-            # 啟動背景 WebSocket Receiver
-            threading.Thread(target=ws_receiver, daemon=True).start()
-
-             # 啟動 wait_for_loading Thread
-            threading.Thread(target=wait_for_loading, daemon=True).start()
+            threading.Thread(target=lambda: asyncio.run(run_ws_receiver()), daemon=True).start()
+            threading.Thread(target=lambda: asyncio.run(run_status_ws_receiver()), daemon=True).start()
 
         else:
             print(f"[前端] 等待中... {data}")
@@ -108,7 +171,6 @@ pg.init()
 
 white = (255, 255, 255)
 black = (0, 0, 0)
-bomb = (92, 92, 92)
 
 width = 640
 height = 480
@@ -136,150 +198,94 @@ MOLE_TYPES = [
     {"name": "賭博地鼠", "color": (128, 0, 128), "score": 0, "score_range": (-7, 15)},
 ]
 
-current_mole_type = None
-mole_index = None
-mole_visible = False
-score = 0
-start_time = time.time()
-game_duration = 60
-game_state = "playing"
-remaining_wait_time = 10
-leaderboard_data = []
-
-next_mole_time = time.time() + 1
-
 running = True
 clock = pg.time.Clock()
 
 # 遊戲主迴圈
 while running:
     elapsed_time = time.time() - start_time
-    remaining_time = max(0, int(game_duration - elapsed_time))
+    remaining_time = max(0, int(60 - elapsed_time))
 
-    screen.fill((black))
+    screen.fill(black)
 
     if game_state == "waiting":
-        waiting_surface = font.render(f"Loading..{remaining_wait_time} s", True, (white))
+        waiting_surface = font.render(f"Waiting for players...", True, white)
         waiting_rect = waiting_surface.get_rect(center=(width / 2, height / 2))
         screen.blit(waiting_surface, waiting_rect)
 
+    elif game_state == "loading":
+        loading_surface = font.render(f"Loading..{loading_time} s", True, white)
+        loading_rect = loading_surface.get_rect(center=(width / 2, height / 2))
+        screen.blit(loading_surface, loading_rect)
+
+
     elif game_state == "ready":
-        # 新增 Ready 畫面！
         ready_surface = big_font.render("Ready!", True, (255, 255, 0))
         ready_rect = ready_surface.get_rect(center=(width / 2, height / 2))
         screen.blit(ready_surface, ready_rect)
 
     elif game_state == "playing":
-        screen.fill((black))
-
-        score_surface = font.render(f"Score: {score}", True, (white))
+        score_surface = font.render(f"Score: {score}", True, white)
         screen.blit(score_surface, (20, 20))
 
-        time_surface = font.render(f"Time: {remaining_time}s", True, (white))
+        time_surface = font.render(f"Time: {remaining_time}s", True, white)
         screen.blit(time_surface, (350, 20))
 
-        if time.time() >= next_mole_time and remaining_time > 0:
-            mole_index = random.randint(0, 8)
-            mole_visible = True
-            current_mole_type = random.choice(MOLE_TYPES)
-            next_mole_time = time.time() + random.uniform(0.5, 1.5)
-
-        if mole_visible and mole_index is not None:
-            x, y = grid_positions[mole_index]
-            mole_color = current_mole_type["color"]
+        if mole_active and current_mole_position >= 0:
+            x, y = grid_positions[current_mole_position]
+            mole_color = next(m["color"] for m in MOLE_TYPES if m["name"] == current_mole_type_name)
             pg.draw.circle(screen, mole_color, (x, y), 50)
 
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 running = False
 
-            elif event.type == pg.MOUSEBUTTONDOWN and mole_visible:
+            elif event.type == pg.MOUSEBUTTONDOWN and mole_active:
                 mouse_x, mouse_y = pg.mouse.get_pos()
-                x, y = grid_positions[mole_index]
+                x, y = grid_positions[current_mole_position]
 
                 if (mouse_x - x) ** 2 + (mouse_y - y) ** 2 <= 50 ** 2:
-                    print(f"打中了 {current_mole_type['name']}！")
+                    print(f"打中了 {current_mole_type_name}！")
 
-                    if "score_range" in current_mole_type:
-                        random_score = random.randint(current_mole_type["score_range"][0], current_mole_type["score_range"][1])
+                    mole_info = next(m for m in MOLE_TYPES if m["name"] == current_mole_type_name)
+                    if "score_range" in mole_info:
+                        random_score = random.randint(mole_info["score_range"][0], mole_info["score_range"][1])
                         score += random_score
                         print(f"賭博地鼠獲得分數: {random_score}!")
                     else:
-                        score += current_mole_type["score"]
+                        score += mole_info["score"]
 
-                    # 回報 GameServer → 點擊地鼠
                     try:
-                        ws.send(f"hit:{current_mole_type['name']}:{score}")
-                        print(f"[前端] 發送 hit:{current_mole_type['name']}:{score} 給 GameServer")
+                        asyncio.run(ws_conn.send(f"hit:{current_mole_id}:{score}"))
+                        print(f"[前端] 發送 hit:{current_mole_id}:{score} 給 GameServer")
                     except:
                         pass
 
-                    mole_visible = False
+                    mole_active = False
 
-        if game_state == "playing" and remaining_time <= 0:
-            game_over_surface = big_font.render("Time out", True, (255, 0, 0))
-            text_rect = game_over_surface.get_rect(center=(width / 2, height / 2))
-            screen.blit(game_over_surface, text_rect)
-            screen.fill((black))
+    # 遊戲結束
+    if game_state == "playing" and remaining_time <= 0:
+        game_over_surface = big_font.render("Time out", True, (255, 0, 0))
+        text_rect = game_over_surface.get_rect(center=(width / 2, height / 2))
+        screen.blit(game_over_surface, text_rect)
 
-            if ws:
-                try:
-                    ws.send(f"final:{username}:{score}")
-                    print(f"[前端] 發送 final:{username}:{score} 給 GameServer")
-                    ws.close()
-                    print("[前端] WebSocket 已關閉")
-                    time.sleep(0.5)
-                except:
-                    pass
+        pg.display.flip()
+        time.sleep(3)
 
-            if assigned_server:
-                print("[前端] 取得排行榜中...")
-                try:
-                    response = requests.get("http://127.0.0.1:8000/get_leaderboard", params={
-                        "gameserver_url": assigned_server
-                    })
-                    if response.status_code == 200:
-                        leaderboard_data = response.json()["leaderboard"]
-                        print("[前端] getTop!", leaderboard_data)
-                    else:
-                        print("[前端] NotTop!", response.text)
-                except Exception as e:
-                    print("[前端] 取得排行榜異常", e)
-            else:
-                print("[前端] 沒有 assigned_server，略過排行榜")
+        screen.fill(black)
+        pg.display.flip()
 
-            leaderboard_surface = big_font.render("Leaderboard", True, white)
-            leaderboard_rect = leaderboard_surface.get_rect(center=(width / 2, 50))
-            screen.blit(leaderboard_surface, leaderboard_rect)
+        if ws_conn:
+            try:
+                future = asyncio.run_coroutine_threadsafe(send_final_score(), loop)
+                future.result()  # 等它跑完（同步等待）
+                time.sleep(0.5)
+            except Exception as e:
+                print(f"[前端] 發送 final 時出錯: {e}")
 
-            for idx, entry in enumerate(leaderboard_data[:5]):
-                text = f"{idx + 1}. {entry['username']} - {entry['score']}"
-                entry_surface = font.render(text, True, white)
-                screen.blit(entry_surface, (width / 2 - 150, 100 + idx * 50))
-
-            final_score_surface = font.render(f"Final Score: {score}", True, white)
-            final_score_rect = final_score_surface.get_rect(center=(width / 2, height / 2 + 120))
-            screen.blit(final_score_surface, final_score_rect)
-
-            tip_surface = font.render("Click to exit", True, (white))
-            tip_rect = tip_surface.get_rect(center=(width / 2, height / 2 + 180))
-            screen.blit(tip_surface, tip_rect)
-            pg.display.flip()
-
-            waiting_for_exit = True
-            while waiting_for_exit:
-                for event in pg.event.get():
-                    if event.type == pg.QUIT:
-                        waiting_for_exit = False
-                    elif event.type == pg.MOUSEBUTTONUP:
-                        waiting_for_exit = False
-
-            running = False
-
-            print("[前端] 遊戲結束，通知 player_offline")
-            requests.post("http://127.0.0.1:8000/player_offline", json={
-                "username": username
-            })
+        running = False
+        print("[前端] 遊戲結束，通知 player_offline")
+        requests.post("http://127.0.0.1:8000/player_offline", json={"username": username})
 
     pg.display.flip()
     clock.tick(60)

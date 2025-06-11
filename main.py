@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import time
 import json
 
+
 app = FastAPI()
 
 # CORS Middleware
@@ -74,16 +75,18 @@ async def register_gameserver(websocket: WebSocket):
         print(f"[Register] GameServer 註冊: {data}")
 
         gameserver_status[data] = {
-            "connected": True,                  # GameServer 是否在線 (心跳用)
-            "current_players": 0,               # 目前 GameServer 上線玩家數
-            "max_players": 2,                   # 每台 GameServer 最大容納玩家數
-            "in_game": False,                   # 遊戲進行狀態 → True=遊戲中 / False=loading/等待
-            "remaining_time": 0,                # loading 或遊戲進行時的倒數秒數
-            "leaderboard": [],                  # 當前排行榜，list of {"username":..., "score":...}
-            "last_heartbeat": time.time(),      # 最近一次收到心跳的時間 → 用於判斷斷線
-            "loading_started": False,           # 是否已進入 loading 倒數階段
-            "loading_start_time": None,         # loading 倒數開始時間戳
-            "game_start_time": None,             # 正式遊戲開始時間戳
+            "connected": True,
+            "current_players": 0,
+            "max_players": 2,
+            "in_game": False,
+            "remaining_time": 0,
+            "leaderboard": [],
+            "last_heartbeat": time.time(),
+            "loading_started": False,
+            "loading_start_time": None,
+            "game_start_time": None,
+            "ready_started": False,
+            "ready_start_time": None,
             "game_phase": "waiting"
         }
 
@@ -99,39 +102,45 @@ async def register_gameserver(websocket: WebSocket):
                 status_update = json.loads(msg)
                 gameserver_status[data]["current_players"] = status_update.get("current_players", 0)
                 gameserver_status[data]["leaderboard"] = status_update.get("leaderboard", [])
+                gameserver_status[data]["loading_time"] = status_update.get("loading_time", 0) or 0
                 gameserver_status[data]["last_heartbeat"] = time.time()
+
 
                 gs = gameserver_status[data]
                 now = time.time()
 
-                # 🚩 先強制 reset 沒玩家狀態
                 if gs["current_players"] == 0:
-                    # if gs["loading_started"] or gs["game_start_time"] is not None:
-                    #     print(f"[Control] GameServer {data} 玩家清空，重置為等待中")
+                    # Reset → waiting
                     gs["loading_started"] = False
                     gs["loading_start_time"] = None
                     gs["game_start_time"] = None
+                    gs["ready_started"] = False
+                    gs["ready_start_time"] = None
                     gs["in_game"] = False
                     gs["remaining_time"] = 0
                     gs["leaderboard"] = []
-                    gs["game_phase"] = "waiting" 
+                    gs["game_phase"] = "waiting"
 
-                # 🚩 有玩家時才跑 loading / game 流程
                 elif gs["current_players"] > 0:
+                    if not gs["loading_started"] and gs["game_start_time"] is None:
+                        gs["loading_started"] = True
+                        gs["loading_start_time"] = now
+                        gs["game_phase"] = "loading"
+                        print(f"[Control WS] GameServer {data} 開始 loading 倒數 10 秒")
+
                     if gs["loading_started"] and gs["game_start_time"] is None:
                         elapsed_loading = now - gs["loading_start_time"]
                         if elapsed_loading < 10:
                             gs["game_phase"] = "loading"
                             gs["in_game"] = False
-                            gs["remaining_time"] = 10 - int(elapsed_loading)
+                            gs["remaining_time"] = max(0, 10 - int(elapsed_loading))
                         elif not gs.get("ready_started", False):
-                            # 進入 Ready 階段
                             gs["ready_started"] = True
                             gs["ready_start_time"] = now
                             gs["game_phase"] = "ready"
                             gs["in_game"] = False
                             gs["remaining_time"] = 0
-                            print(f"[Control] GameServer {data} Ready！等待 2 秒")
+                            print(f"[Control WS] GameServer {data} Ready！等待 2 秒")
                         elif gs.get("ready_started", False):
                             elapsed_ready = now - gs["ready_start_time"]
                             if elapsed_ready < 2:
@@ -139,27 +148,28 @@ async def register_gameserver(websocket: WebSocket):
                                 gs["in_game"] = False
                                 gs["remaining_time"] = 0
                             else:
-                                # Ready 完成 → 正式開始遊戲
                                 gs["game_start_time"] = now
                                 gs["ready_started"] = False
                                 gs["ready_start_time"] = None
                                 gs["game_phase"] = "playing"
                                 gs["in_game"] = True
                                 gs["remaining_time"] = 60
-                                print(f"[Control] GameServer {data} 正式進入遊戲中")
-
+                                print(f"[Control WS] GameServer {data} 正式進入遊戲中")
 
                     elif gs["game_start_time"] is not None:
                         elapsed_game = now - gs["game_start_time"]
                         remaining_game_time = max(0, 60 - int(elapsed_game))
                         gs["remaining_time"] = remaining_game_time
                         gs["in_game"] = remaining_game_time > 0
+                        gs["game_phase"] = "playing"
 
                         if remaining_game_time == 0:
-                            print(f"[Control] GameServer {data} 遊戲結束，重置為等待中")
+                            print(f"[Control WS] GameServer {data} 遊戲結束，重置為等待中")
                             gs["loading_started"] = False
                             gs["loading_start_time"] = None
                             gs["game_start_time"] = None
+                            gs["ready_started"] = False
+                            gs["ready_start_time"] = None
                             gs["in_game"] = False
                             gs["remaining_time"] = 0
                             gs["leaderboard"] = []
@@ -200,88 +210,58 @@ def get_leaderboard(gameserver_url: str):
         return {"leaderboard": leaderboard}
     else:
         raise HTTPException(status_code=404, detail="GameServer 未找到")
-
+    
+###
 @app.get("/get_gameserver_status")
 def get_gameserver_status(gameserver_url: str):
     if gameserver_url in gameserver_status:
         gs = gameserver_status[gameserver_url]
         now = time.time()
+        remaining_time = 0
 
         if gs["current_players"] == 0:
-            # Reset → waiting
             gs["loading_started"] = False
             gs["loading_start_time"] = None
             gs["game_start_time"] = None
             gs["ready_started"] = False
             gs["ready_start_time"] = None
             gs["in_game"] = False
-            gs["remaining_time"] = 0
-            gs["leaderboard"] = []
             gs["game_phase"] = "waiting"
 
+            remaining_time = 0
+
         elif gs["current_players"] > 0:
-            if not gs["loading_started"] and gs["game_start_time"] is None:
-                gs["loading_started"] = True
-                gs["loading_start_time"] = now
-                gs["game_phase"] = "loading"
-                print(f"[Control GET] GameServer {gameserver_url} 開始 loading 倒數 10 秒（GET觸發）")
+            if gs["game_phase"] == "loading" and gs["loading_start_time"] is not None:
+                remaining_time = gs.get("loading_time", 0)
+                gs["remaining_time"] = remaining_time
 
-            if gs["loading_started"] and gs["game_start_time"] is None:
-                elapsed_loading = now - gs["loading_start_time"]
-                if elapsed_loading < 10:
-                    gs["game_phase"] = "loading"
-                    gs["in_game"] = False
-                    gs["remaining_time"] = 10 - int(elapsed_loading)
-                elif not gs.get("ready_started", False):
-                    # 進入 Ready phase
-                    gs["ready_started"] = True
-                    gs["ready_start_time"] = now
-                    gs["game_phase"] = "ready"
-                    gs["in_game"] = False
-                    gs["remaining_time"] = 0
-                    print(f"[Control GET] GameServer {gameserver_url} Ready！等待 2 秒（GET觸發）")
-                elif gs.get("ready_started", False):
-                    elapsed_ready = now - gs["ready_start_time"]
-                    if elapsed_ready < 2:
-                        gs["game_phase"] = "ready"
-                        gs["in_game"] = False
-                        gs["remaining_time"] = 0
-                    else:
-                        # Ready → playing
-                        gs["game_start_time"] = now
-                        gs["ready_started"] = False
-                        gs["ready_start_time"] = None
-                        gs["game_phase"] = "playing"
-                        gs["in_game"] = True
-                        gs["remaining_time"] = 60
-                        print(f"[Control GET] GameServer {gameserver_url} 正式進入遊戲中（GET觸發）")
+            elif gs["game_phase"] == "ready" and gs["ready_start_time"] is not None:
+                elapsed_ready = now - gs["ready_start_time"]
+                remaining_time = max(0, 2 - int(elapsed_ready))
+                gs["remaining_time"] = remaining_time
 
-            elif gs["game_start_time"] is not None:
+            elif gs["game_phase"] == "playing" and gs["game_start_time"] is not None:
                 elapsed_game = now - gs["game_start_time"]
-                remaining_game_time = max(0, 60 - int(elapsed_game))
-                gs["remaining_time"] = remaining_game_time
-                gs["in_game"] = remaining_game_time > 0
-                gs["game_phase"] = "playing"
+                remaining_time = max(0, 60 - int(elapsed_game))
+                gs["remaining_time"] = remaining_time
 
-                if remaining_game_time == 0:
-                    print(f"[Control GET] GameServer {gameserver_url} 遊戲結束，重置為等待中（GET觸發）")
-                    gs["loading_started"] = False
-                    gs["loading_start_time"] = None
-                    gs["game_start_time"] = None
-                    gs["ready_started"] = False
-                    gs["ready_start_time"] = None
-                    gs["in_game"] = False
-                    gs["remaining_time"] = 0
-                    gs["leaderboard"] = []
-                    gs["game_phase"] = "waiting"
+            else:
+                remaining_time = 0
+                gs["remaining_time"] = remaining_time
+
+        else:
+            remaining_time = 0
+            gs["remaining_time"] = remaining_time
 
         return {
             "current_players": gs["current_players"],
             "in_game": gs["in_game"],
-            "remaining_time": gs["remaining_time"],
-            "game_phase": gs.get("game_phase", "waiting")  # ⭐ 這個一定要加！前端才拿得到
+            "remaining_time": remaining_time,
+            "game_phase": gs.get("game_phase", "waiting")
         }
 
     else:
         raise HTTPException(status_code=404, detail="GameServer 未找到")
+
+
 
