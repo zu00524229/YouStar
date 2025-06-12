@@ -1,47 +1,51 @@
-# game.py
+# game.py → 遊戲前端主程式，整合 GameClient + Pygame 畫面
+
 import pygame as pg
 import random
 from client import GameClient
 
-# 啟動 GameClient
+# 啟動 GameClient → 負責與 ControlServer + GameServer 通訊
 client = GameClient("player1", "1234")
 client.start()
 
-# 初始化 pygame
+# 初始化 pygame 畫面
 pg.init()
 
 white = (255, 255, 255)
 black = (0, 0, 0)
 
-width = 960
-height = 720
+width = 840
+height = 680
 screen = pg.display.set_mode((width, height))
 pg.display.set_caption("打地鼠")
 
 font = pg.font.SysFont(None, 48)
 big_font = pg.font.SysFont(None, 96)
 
-cell_size = 150
+# 設定 4x3 格子位置
+cell_size = 160
 offset_x = (width - (cell_size * 4)) // 2
-offset_y = (height - (cell_size * 4)) // 2 + 30
+offset_y = (height - (cell_size * 3)) // 2 + 30
 
 grid_positions = []
-for row in range(4):
+for row in range(3):
     for col in range(4):
         x = offset_x + col * cell_size + cell_size // 2
         y = offset_y + row * cell_size + cell_size // 2
         grid_positions.append((x, y))
 
+# 地鼠種類
 MOLE_TYPES = [
-    {"name": "普通地鼠", "color": (200, 100, 100), "score": +1},
-    {"name": "黃金地鼠", "color": (255, 215, 0), "score": +5},
-    {"name": "炸彈地鼠", "color": (92, 92, 92), "score": -3},
-    {"name": "賭博地鼠", "color": (128, 0, 128), "score": 0, "score_range": (-7, 15)},
+    {"name": "普通地鼠", "color": (200, 100, 100), "score": +3},
+    {"name": "黃金地鼠", "color": (255, 215, 0), "score": +8},
+    {"name": "炸彈地鼠", "color": (92, 92, 92), "score": -5},
+    {"name": "賭博地鼠", "color": (128, 0, 128), "score": 0, "score_range": (-10, 20)},
 ]
 
 running = True
 clock = pg.time.Clock()
 
+# 處理退出遊戲
 def handle_quit():
     global running
     running = False
@@ -49,7 +53,7 @@ def handle_quit():
 
 # 遊戲主迴圈
 while running:
-    # ⭐ 用 lock 保證讀 game_state / remaining_time / loading_time
+    # 從 client 狀態讀取目前遊戲狀態 → 用 lock 確保同步
     with client.state_lock:
         current_game_state = client.game_state
         current_remaining_time = client.remaining_time
@@ -61,12 +65,15 @@ while running:
         leaderboard_data = client.leaderboard_data
         score = client.score
 
-    # ⭐ 直接畫 server 傳來的 remaining_time
+    # 時間顯示
     time_surface = font.render(f"Time: {current_remaining_time}s", True, white)
 
     screen.fill(black)
 
+    # === 畫面邏輯根據 game_state 顯示不同畫面 ===
+
     if current_game_state == "waiting":
+        # 等待玩家進入
         waiting_surface = font.render(f"Waiting for players...", True, white)
         waiting_rect = waiting_surface.get_rect(center=(width / 2, height / 2))
         screen.blit(waiting_surface, waiting_rect)
@@ -76,15 +83,13 @@ while running:
                 handle_quit()
 
     elif current_game_state == "gameover":
-        game_over_surface = big_font.render("Time out", True, (255, 0, 0))
-        text_rect = game_over_surface.get_rect(center=(width / 2, height / 2 - 50))
-        screen.blit(game_over_surface, text_rect)
 
-        # 顯示排行榜
+        # 遊戲結束 → 顯示排行榜
         leaderboard_surface = big_font.render("Leaderboard", True, white)
-        leaderboard_rect = leaderboard_surface.get_rect(center=(width / 2, 50))
+        leaderboard_rect = leaderboard_surface.get_rect(center=(width / 2, 100))
         screen.blit(leaderboard_surface, leaderboard_rect)
 
+        # 畫 leaderboard
         for idx, entry in enumerate(leaderboard_data[:5]):
             text = f"{idx + 1}. {entry['username']} - {entry['score']}"
             entry_surface = font.render(text, True, white)
@@ -92,11 +97,11 @@ while running:
 
         # 畫 Exit 按鈕
         exit_surface = font.render("Exit", True, (255, 255, 255))
-        exit_rect = exit_surface.get_rect(center=(width / 2, height / 2 + 50))
-        pg.draw.rect(screen, (100, 100, 100), exit_rect.inflate(20, 10))  # 灰底
+        exit_rect = exit_surface.get_rect(center=(width / 2, height / 2 + 200))
+        pg.draw.rect(screen, (100, 100, 100), exit_rect.inflate(20, 10))
         screen.blit(exit_surface, exit_rect)
 
-        # 處理按鈕點擊
+        # 處理點擊 Exit
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 handle_quit()
@@ -106,6 +111,7 @@ while running:
                     handle_quit()
 
     elif current_game_state == "loading":
+        # loading 倒數畫面
         loading_surface = font.render(f"Loading..{current_loading_time} s", True, white)
         loading_rect = loading_surface.get_rect(center=(width / 2, height / 2))
         screen.blit(loading_surface, loading_rect)
@@ -115,6 +121,7 @@ while running:
                 handle_quit()
 
     elif current_game_state == "ready":
+        # ready 畫面
         ready_surface = big_font.render("Ready!", True, (255, 255, 0))
         ready_rect = ready_surface.get_rect(center=(width / 2, height / 2))
         screen.blit(ready_surface, ready_rect)
@@ -124,10 +131,12 @@ while running:
                 handle_quit()
 
     elif current_game_state == "playing":
+        # 遊戲進行中 → 顯示分數 + 時間 + 地鼠
         score_surface = font.render(f"Score: {score}", True, white)
         screen.blit(score_surface, (20, 20))
         screen.blit(time_surface, (350, 20))
 
+        # 畫地鼠
         if mole_active and current_mole_position >= 0:
             x, y = grid_positions[current_mole_position]
             mole_color = next(m["color"] for m in MOLE_TYPES if m["name"] == current_mole_type_name)
@@ -138,12 +147,14 @@ while running:
                 handle_quit()
 
             elif event.type == pg.MOUSEBUTTONDOWN and mole_active:
+                # 判斷是否打中地鼠
                 mouse_x, mouse_y = pg.mouse.get_pos()
                 x, y = grid_positions[current_mole_position]
 
                 if (mouse_x - x) ** 2 + (mouse_y - y) ** 2 <= 50 ** 2:
                     print(f"打中了 {current_mole_type_name}！")
 
+                    # 計算得分
                     mole_info = next(m for m in MOLE_TYPES if m["name"] == current_mole_type_name)
                     if "score_range" in mole_info:
                         random_score = random.randint(mole_info["score_range"][0], mole_info["score_range"][1])
@@ -152,14 +163,16 @@ while running:
                     else:
                         score += mole_info["score"]
 
-                    # 更新 client.score，發送 hit
+                    # 更新 client.score → 發送 hit
                     with client.state_lock:
                         client.score = score
                     client.send_hit()
 
                     mole_active = False
 
+    # 畫面更新
     pg.display.flip()
     clock.tick(60)
 
+# 遊戲結束
 pg.quit()

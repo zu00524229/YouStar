@@ -92,6 +92,16 @@ class GameClient:
                                 self.leaderboard_data = data.get("leaderboard", [])
                                 self.game_state = "gameover"
 
+                            try:
+                                async with websockets.connect(CONTROL_SERVER_WS) as ws_offline:
+                                    await ws_offline.send(json.dumps({
+                                        "type": "offline",
+                                        "username": self.username
+                                    }))
+                                    print(f"[前端] 已主動通知 ControlServer 玩家 {self.username} offline (排行榜出現)")
+                            except Exception as e:
+                                print(f"[前端] 通知 ControlServer 玩家 {self.username} offline 失敗: {e}")
+
                         elif data.get("type") == "status_update":
                             with self.state_lock:
                                 game_phase = data.get("game_phase", "waiting")
