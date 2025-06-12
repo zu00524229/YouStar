@@ -177,7 +177,7 @@ async def run_status_loop(ws):
                 "loading_time": loading_time_left
             }
 
-            print(f"[GameServer] 發送給 ControlServer 的 game_phase = {game_phase}")
+            # print(f"[GameServer] 發送給 ControlServer 的 game_phase = {game_phase}")
             await ws.send(json.dumps(status_update))
 
             for player, ws_conn in player_websockets.items():
@@ -187,7 +187,7 @@ async def run_status_loop(ws):
                     pass
 
             await ws.send(json.dumps({"type": "ping"}))
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1)
 
     except Exception as e:
         print(f"[GameServer] run_status_loop 發生異常: {e}")
@@ -227,7 +227,7 @@ async def mole_sender():
                     except:
                         pass
 
-                print(f"[GameServer] 廣播新地鼠: {mole_msg}")
+                # print(f"[GameServer] 廣播新地鼠: {mole_msg}")
 
                 sleep_time = random.uniform(1.0, 2.0)
                 start_sleep = time.time()
@@ -294,6 +294,19 @@ async def player_handler(websocket):
         print(f"[GameServer] 玩家 {username} 離線")
         connected_players.discard(username)
         player_websockets.pop(username, None)
+
+        # 通知 ControlServer Offline
+        try:
+            async def notify_control_offline():
+                async with websockets.connect(CONTROL_SERVER_WS) as ws_control:
+                    await ws_control.send(json.dumps({
+                        "type": "offline",
+                        "username": username
+                    }))
+                    print(f"[GameServer] 已通知 ControlServer 玩家 {username} offline")
+            asyncio.create_task(notify_control_offline())
+        except Exception as e:
+            print(f"[GameServer] 通知 ControlServer 玩家 {username} offline 失敗: {e}")
 
 # ---------------------------------------------------
 async def main():

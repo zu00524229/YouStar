@@ -40,14 +40,18 @@ async def handle_client(websocket):
 
             gameserver_status[server_url] = {
                 "connected": True,
-                "current_players": 0,
-                "max_players": 2,
+                "current_players": 0,           # 目前已經進入玩家數
+                "max_players": 1,               # 每台 Gameserver 最大允許人數
                 "in_game": False,
                 "remaining_time": 0,
                 "leaderboard": [],
                 "last_heartbeat": time.time()
             }
 
+            online_servers = [url for url, status in gameserver_status.items() if status["connected"]]
+            print(f"[Register] 目前在線 GameServer 有 {len(online_servers)} 台:")
+            for url in online_servers:
+                print(f"    - {url}")
             # GameServer loop → 持續接收 heartbeat + status
             while True:
                 msg = await websocket.recv()
@@ -66,7 +70,7 @@ async def handle_client(websocket):
 
 
                     # print(f"[Status] GameServer {server_url} 狀態更新: {status_update}")
-                    print(f"[ControlServer] 更新後 game_phase = {gameserver_status[server_url]['game_phase']}")
+                    # print(f"[ControlServer] 更新後 game_phase = {gameserver_status[server_url]['game_phase']}")
 
 
                 except Exception as e:
@@ -89,7 +93,7 @@ async def handle_client(websocket):
 
                 # 指派 GameServer
                 for server_url, status in gameserver_status.items():
-                    if status["connected"] and not status["in_game"] and status["current_players"] < status["max_players"]:
+                    if status["connected"] and status["game_phase"] in ["waiting", "loading"] and status["current_players"] < status["max_players"]:
                         player_online_status[username] = server_url
                         status["current_players"] += 1
                         print(f"[Login] 分配玩家 {username} 到 GameServer {server_url}")

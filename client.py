@@ -23,7 +23,7 @@ mole_active = False
 
 # 遊戲狀態資料
 game_state = "waiting"
-remaining_time = 10    # ⭐ 用 server 傳來的 remaining_time
+remaining_time = 10    # 用 server 傳來的 remaining_time
 loading_time = 0
 start_time = time.time()
 score = 0
@@ -58,12 +58,9 @@ def handle_gameover():
             except Exception as e:
                 print(f"[前端] 發送 final 時出錯: {e}")
 
-        try:
-            future = asyncio.run_coroutine_threadsafe(send_offline(), loop)
-            future.result()
-        except Exception as e:
-            print(f"[前端] 發送 offline 時出錯: {e}")
-    
+        # 改 → 直接呼叫 handle_quit()，統一流程
+        handle_quit()
+
         print("[前端] handle_gameover 完成，等待玩家點擊 Exit")
 
 # 地鼠 receiver
@@ -108,7 +105,7 @@ async def ws_receiver_async():
                         print("[前端] Leaderboard 更新:", leaderboard_data)
 
                     elif data.get("type") == "status_update":
-                        print(f"[前端] 收到 status_update → game_phase = {data.get('game_phase')}")
+                        # print(f"[前端] 收到 status_update → game_phase = {data.get('game_phase')}")
 
                         # 如果 gameover，直接斷線，不收了
                         if game_state == "gameover":
@@ -122,7 +119,7 @@ async def ws_receiver_async():
                             loading_time = data.get("loading_time", 0)
                             remaining_time = data.get("remaining_time", 0)
 
-                            print(f"[前端][Status WS] GameServer 進入 {game_phase} phase")
+                            # print(f"[前端][Status WS] GameServer 進入 {game_phase} phase")
 
                             # 用 game_phase 決定要不要更新 game_state
                             if game_phase == "waiting":
@@ -204,6 +201,18 @@ def start_login():
 
 threading.Thread(target=start_login, daemon=True).start()
 
+# 控制玩家關閉遊戲時斷線
+def handle_quit():
+    global running
+    running = False
+    print("[前端] 玩家關閉視窗 / 結束遊戲，發送 offline")
+    try:
+        future = asyncio.run_coroutine_threadsafe(send_offline(), loop)
+        future.result(timeout=1)
+    except Exception as e:
+        print(f"[前端] 發送 offline 時出錯或 timeout: {e}")
+
+
 
 ################################################################################################
 ########################################### 初始化 pygame ######################################
@@ -259,6 +268,10 @@ while running:
         waiting_rect = waiting_surface.get_rect(center=(width / 2, height / 2))
         screen.blit(waiting_surface, waiting_rect)
 
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                handle_quit()
+
     elif current_game_state == "gameover":
         game_over_surface = big_font.render("Time out", True, (255, 0, 0))
         text_rect = game_over_surface.get_rect(center=(width / 2, height / 2 - 50))
@@ -283,21 +296,29 @@ while running:
         # 處理按鈕點擊
         for event in pg.event.get():
             if event.type == pg.QUIT:
-                running = False
+                handle_quit()
             elif event.type == pg.MOUSEBUTTONDOWN:
                 mouse_x, mouse_y = pg.mouse.get_pos()
                 if exit_rect.collidepoint(mouse_x, mouse_y):
-                    running = False
+                    handle_quit()
 
     elif current_game_state == "loading":
         loading_surface = font.render(f"Loading..{current_loading_time} s", True, white)
         loading_rect = loading_surface.get_rect(center=(width / 2, height / 2))
         screen.blit(loading_surface, loading_rect)
 
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                handle_quit()
+
     elif current_game_state == "ready":
         ready_surface = big_font.render("Ready!", True, (255, 255, 0))
         ready_rect = ready_surface.get_rect(center=(width / 2, height / 2))
         screen.blit(ready_surface, ready_rect)
+
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                handle_quit()
 
     elif current_game_state == "playing":
         score_surface = font.render(f"Score: {score}", True, white)
@@ -311,7 +332,7 @@ while running:
 
         for event in pg.event.get():
             if event.type == pg.QUIT:
-                running = False
+                handle_quit()
 
             elif event.type == pg.MOUSEBUTTONDOWN and mole_active:
                 mouse_x, mouse_y = pg.mouse.get_pos()
