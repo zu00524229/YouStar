@@ -9,25 +9,32 @@ CONTROL_SERVER_WS = "ws://127.0.0.1:8765"
 
 class GameClient:
     def __init__(self, username, password):
-        self.username = username
-        self.password = password
-        self.assigned_server = None
-        self.ws_conn = None
+        self.username = username    # 玩家帳號名稱
+        self.password = password    # 玩家密碼
+        # 分配到的 GameServer URL
+        self.assigned_server = None # 當前分配到的 GameServer WebSocket URL（登入成功後才會有值）
+        # 與 GameServer 的 WebSocket 連線物件
+        self.ws_conn = None         # 當前與 GameServer 保持的 WebSocket 連線 → 用來發 hit / 收事件
+        # 目前 asyncio 事件迴圈（主執行緒內）
         self.loop = asyncio.get_event_loop()
 
-        # 同步資料
-        self.current_mole_id = -1
-        self.current_mole_position = -1
-        self.current_mole_type_name = ""
-        self.mole_active = False
+        # 地鼠同步資料（由 server 廣播 mole_update 更新）
+        self.current_mole_id = -1               # 當前地鼠的 mole_id（唯一識別碼）
+        self.current_mole_position = -1         # 地鼠目前出現在哪一格（對應 grid_positions index）
+        self.current_mole_type_name = ""        # 地鼠類型名稱（普通地鼠 / 黃金地鼠 / ...）
+        self.mole_active = False                # 地鼠是否還有效可打（True:可以打，False:已被打中或消失）
 
-        self.game_state = "waiting"
-        self.remaining_time = 10
-        self.loading_time = 0
-        self.score = 0
-        self.leaderboard_data = []
+        # 遊戲整體狀態
+        self.game_state = "waiting"             # 玩家當前遊戲狀態 → waiting / loading / ready / playing / gameover
+        self.remaining_time = 10                # 遊戲剩餘秒數（GameServer 會持續更新）
+        self.loading_time = 0                   # loading 倒數剩餘秒數（GameServer 會持續更新）
+        self.score = 0                          # 玩家目前累積分數（本地紀錄，打中地鼠時手動累加）
 
-        self.state_lock = threading.Lock()
+        # 排行榜資料（收到 leaderboard_update 後更新）
+        self.leaderboard_data = []              # 排行榜資料 → list of {"username": ..., "score": ...}
+
+        # 狀態鎖 → 避免多執行緒/非同步操作時，資料讀寫互撞
+        self.state_lock = threading.Lock()      # 讀寫上面這些狀態變數時，加鎖保護 → 確保資料一致性
 
     def start(self):
         threading.Thread(target=self._start_login, daemon=True).start()

@@ -1,5 +1,4 @@
-# game.py → 遊戲前端主程式，整合 GameClient + Pygame 畫面
-
+# game.py → 遊戲主程式
 import pygame as pg
 import random
 from client import GameClient
@@ -54,16 +53,35 @@ def handle_quit():
 # 遊戲主迴圈
 while running:
     # 從 client 狀態讀取目前遊戲狀態 → 用 lock 確保同步
-    with client.state_lock:
-        current_game_state = client.game_state
-        current_remaining_time = client.remaining_time
-        current_loading_time = client.loading_time
-        current_mole_id = client.current_mole_id
-        current_mole_position = client.current_mole_position
-        current_mole_type_name = client.current_mole_type_name
-        mole_active = client.mole_active
-        leaderboard_data = client.leaderboard_data
-        score = client.score
+    with client.state_lock: 
+        
+        current_game_state = client.game_state          # → 通常 UI 會根據這個顯示當前畫面狀態
+        # 玩家目前遊戲階段（waiting / loading / ready / playing / gameover）      
+        
+        current_remaining_time = client.remaining_time  # → UI 倒數顯示用
+        # 遊戲剩餘秒數（playing 階段用）
+        
+        current_loading_time = client.loading_time      # → UI 顯示 loading 倒數時用
+        # loading 階段倒數剩餘秒數
+        
+        current_mole_id = client.current_mole_id        # → UI 顯示地鼠用，當前地鼠的唯一編號
+        # → 點擊 hit 時要帶這個 id 回報 hit:mole_id:score
+        
+        current_mole_position = client.current_mole_position    # → UI 畫地鼠時決定畫在哪一格
+        # 當前活躍地鼠出現在哪一格（grid_positions index）
+
+        current_mole_type_name = client.current_mole_type_name  # → UI 可以畫不同顏色 / 圖示 / 音效
+        # 地鼠類型名稱（普通地鼠 / 黃金地鼠 / 炸彈地鼠 / 賭博地鼠）
+        
+        mole_active = client.mole_active                        # → UI 判斷是否可處理點擊
+        # 地鼠是否還有效（True:可打 / False:已被打 / 已消失）  
+        # → hit 檢查時也要判斷 active
+        leaderboard_data = client.leaderboard_data              # → UI 排行榜畫面用，通常 gameover 階段顯示
+        # 最新 leaderboard 資料（list of {username, score}）
+       
+        score = client.score                            # 玩家目前分數    
+        # → UI 分數即時顯示
+        # → hit 成功後 +1/+5/... 手動更新這個分數
 
     # 時間顯示
     time_surface = font.render(f"Time: {current_remaining_time}s", True, white)
