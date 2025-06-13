@@ -338,77 +338,92 @@ async def player_handler(websocket):
         async for msg in websocket:
             print(f"[GameServer] 收到玩家 {username} 訊息: {msg}")
 
-            # 一般地鼠
-            if msg.startswith("hit:"):
-                parts = msg.split(":")
-                mole_id = int(parts[1])
-                player_score = int(parts[2])
+            try:
+                # 一般地鼠
+                if msg.startswith("hit:"):
+                    parts = msg.split(":")
+                    if len(parts) != 3:
+                        raise ValueError(f"hit 訊息格式錯誤: {msg}")
 
-                if current_mole["mole_id"] == mole_id and current_mole["active"]:
-                    print(f"[GameServer] 玩家 {username} 打中地鼠 {mole_id}，分數 {player_score}")
-                    current_mole["active"] = False
+                    mole_id = int(parts[1])
+                    player_score = int(parts[2])
 
+                    if current_mole["mole_id"] == mole_id and current_mole["active"]:
+                        print(f"[GameServer] 玩家 {username} 打中地鼠 {mole_id}，分數 {player_score}")
+                        current_mole["active"] = False
 
-                    current_scores[username] = player_score # 更新目前分數 (current_scores)
+                        current_scores[username] = player_score  # 更新目前分數 (current_scores)
 
-                    current_best = leaderboard.get(username, 0)
-                    if player_score > current_best:
-                        leaderboard[username] = player_score
-                        print(f"[GameServer] 更新 {username} 的最高分為 {player_score}")
+                        current_best = leaderboard.get(username, 0)
+                        if player_score > current_best:
+                            leaderboard[username] = player_score
+                            print(f"[GameServer] 更新 {username} 的最高分為 {player_score}")
 
-                    mole_msg = {
-                        "event": "mole_update",
-                        "mole": current_mole
-                    }
+                        mole_msg = {
+                            "event": "mole_update",
+                            "mole": current_mole
+                        }
 
-                    for player, ws_conn in player_websockets.items():
-                        try:
-                            await ws_conn.send(json.dumps(mole_msg))
-                        except:
-                            pass
+                        for player, ws_conn in player_websockets.items():
+                            try:
+                                await ws_conn.send(json.dumps(mole_msg))
+                            except:
+                                pass
 
-            # 特殊地鼠
-            elif msg.startswith("special_hit:"):
-                parts = msg.split(":")
-                mole_id = int(parts[1])
-                player_score = int(parts[2])
+                # 特殊地鼠
+                elif msg.startswith("special_hit:"):
+                    parts = msg.split(":")
+                    if len(parts) != 3:
+                        raise ValueError(f"special_hit 訊息格式錯誤: {msg}")
 
-                if current_special_mole["mole_id"] == mole_id and current_special_mole["active"]:
-                    print(f"[GameServer] 玩家 {username} 打中 Special Mole {mole_id}，分數 {player_score}")
-                    current_special_mole["active"] = False
+                    mole_id = int(parts[1])
+                    player_score = int(parts[2])
 
-                    current_scores[username] = player_score
+                    if current_special_mole["mole_id"] == mole_id and current_special_mole["active"]:
+                        print(f"[GameServer] 玩家 {username} 打中 Special Mole {mole_id}，分數 {player_score}")
+                        current_special_mole["active"] = False
 
-                    current_best = leaderboard.get(username, 0)
-                    if player_score > current_best:
-                        leaderboard[username] = player_score
-                        print(f"[GameServer] 更新 {username} 的最高分為 {player_score}")
+                        current_scores[username] = player_score
 
-                    mole_msg = {
-                        "event": "special_mole_update",
-                        "mole": current_special_mole
-                    }
+                        current_best = leaderboard.get(username, 0)
+                        if player_score > current_best:
+                            leaderboard[username] = player_score
+                            print(f"[GameServer] 更新 {username} 的最高分為 {player_score}")
 
-                    for player, ws_conn in player_websockets.items():
-                        try:
-                            await ws_conn.send(json.dumps(mole_msg))
-                        except:
-                            pass
+                        mole_msg = {
+                            "event": "special_mole_update",
+                            "mole": current_special_mole
+                        }
 
+                        for player, ws_conn in player_websockets.items():
+                            try:
+                                await ws_conn.send(json.dumps(mole_msg))
+                            except:
+                                pass
+
+                    else:
+                        print(f"[GameServer] 玩家 {username} 嘗試打已消失地鼠 {mole_id}，忽略")
+
+                # 最終分數
+                elif msg.startswith("final:"):
+                    parts = msg.split(":")
+                    if len(parts) != 3:
+                        raise ValueError(f"final 訊息格式錯誤: {msg}")
+
+                    final_user = parts[1]
+                    final_score = int(parts[2])
+                    print(f"[GameServer] 玩家 {final_user} 結束遊戲，最終分數 {final_score}")
+
+                    current_best = leaderboard.get(final_user, 0)
+                    if final_score > current_best:
+                        leaderboard[final_user] = final_score
+                        print(f"[GameServer] 更新 {final_user} 的最高分為 {final_score}")
 
                 else:
-                    print(f"[GameServer] 玩家 {username} 嘗試打已消失地鼠 {mole_id}，忽略")
+                    print(f"[GameServer] 收到未知訊息: {msg}")
 
-            elif msg.startswith("final:"):
-                parts = msg.split(":")
-                final_user = parts[1]
-                final_score = int(parts[2])
-                print(f"[GameServer] 玩家 {final_user} 結束遊戲，最終分數 {final_score}")
-
-                current_best = leaderboard.get(final_user, 0)
-                if final_score > current_best:
-                    leaderboard[final_user] = final_score
-                    print(f"[GameServer] 更新 {final_user} 的最高分為 {final_score}")
+            except Exception as e:
+                print(f"[GameServer] 玩家 {username} 處理訊息出錯: {e}，msg={msg}")
 
     except websockets.exceptions.ConnectionClosed:
         print(f"[GameServer] 玩家 {username} 離線")
