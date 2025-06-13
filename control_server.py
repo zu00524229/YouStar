@@ -13,8 +13,8 @@ fake_users = {
 }
 
 # 狀態表初始化
-gameserver_status = {}      # 儲存每一台已註冊的 GameServer 狀態（connected / current_players / game_phase / leaderboard / last_heartbeat）
-player_online_status = {}   # 儲存當前在線玩家狀態，防止重複登入
+gameserver_status = {}      # 中控靠這張表去「配房」：有人 login 時，就挑還有空位 + 沒掉線的 server
+player_online_status = {}   # 記錄「哪些玩家現在在線」 + 「在哪台 GameServer 裡」防止重複登入
 
 # 中控 自動檢查 GameServer 是否掉線
 async def heartbeat_checker():
@@ -38,16 +38,16 @@ async def handle_client(websocket):
             server_url = data["server_url"]
             print(f"[Register] GameServer 註冊: {server_url}")
 
-            # 初始化 GameServer 狀態欄位
+            # 初始化 GameServer 狀態欄位 
             gameserver_status[server_url] = {
                 "connected": True,              # GameServer 是否在線
-                "current_players": 0,           # 目前已經進入玩家數
+                "current_players": 0,           # 當前進入此 server 的玩家數
                 "max_players": 2,               # 每台 Gameserver 最大允許人數
-                "in_game": False,               # 檢查是否在遊戲中
+                "in_game": False,               # 檢查是否在遊戲中 (True=playing)
                 "remaining_time": 0,            # 遊戲剩餘秒數
-                "leaderboard": [],              # 排行榜字典、查詢
+                "leaderboard": [],              # 最新排行榜資料 (最高)
                 "last_heartbeat": time.time()   # 檢查 server 是否斷線
-                # 最近一次 heartbeat 時間戳 → 用於判斷是否掉線
+                # 最近一次 ping 時間戳 → 用於判斷是否掉線
             }
 
             # 列出目前在線的 GameServer 列表

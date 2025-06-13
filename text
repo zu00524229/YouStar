@@ -1,0 +1,49 @@
+run_status_loop(ws)
+while True:
+
+┌───────────────┐
+│ 是否 in playing│
+└───────────────┘
+│
+├─ 若 playing & 沒玩家 → 2秒後自動回 waiting
+│
+├─ 若 waiting 有玩家 → 切 loading phase
+│
+├─ 若 loading 倒數完 → 切 playing phase
+│
+├─ 若 playing 倒數完 → 切 gameover phase + 廣播 leaderboard
+│
+├─ 若 gameover 過2秒 → 切 post_gameover → 切回 waiting
+│
+├─ 每秒都發 status_update → ws.send → ControlServer + 玩家廣播
+│
+└─ 每秒都發 ping → ws.send({"type": "ping"})
+
+mole_sender()
+while True:
+    等 phase_changed_event.wait()
+
+    → 收到 set() → 代表進入 playing 了
+    → phase_changed_event.clear()
+
+    while game_phase == "playing":
+        - 每1~2秒發一隻地鼠 (mole_update) 廣播給所有玩家
+        - 更新 current_mole (mole_id / position / mole_type / active=True)
+        - 如果 game_phase 變了 → break loop → 回等待 phase_changed_event
+
+
+player_handler()
+玩家連線進來
+→ 收 username
+→ 加到 connected_players + player_websockets
+→ 取消 post_gameover_cooldown (可重新進新局)
+
+while True:
+    等玩家訊息 msg：
+
+    - hit:mole_id:score → 檢查是否打中 → 更新 current_scores + leaderboard → 廣播 updated mole
+    - final:username:score → 更新 leaderboard
+
+玩家斷線：
+→ 從 connected_players + player_websockets 移除
+→ 通知 ControlServer offline

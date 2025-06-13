@@ -13,13 +13,13 @@ MY_GAME_SERVER_WS = "ws://127.0.0.1:8001/ws"
 phase_changed_event = asyncio.Event()    # 等待進入 playing → mole_sender 才啟動
 connected_players = set()                # 目前在線玩家 username 集合
 leaderboard = {}                         # 玩家最高分字典 {username: score}
-current_scores = {}                      # 玩家當前分數
+current_scores = {}                      # 玩家當前當局分數
 
 # 遊戲計時
-loading_time = 10
-loading_start_time = None
+loading_time = 10                        # loading 倒數秒數
+loading_start_time = None                
 
-GAME_DURATION = 60
+GAME_DURATION = 60                       # 遊戲時間 60s
 game_start_time = None
 gameover_start_time = None
 
@@ -33,9 +33,9 @@ current_mole = {
 }
 
 # 遊戲階段控制
-game_phase = "waiting"                   # waiting / loading / playing / gameover / post_gameover
+game_phase = "waiting"                   # 遊戲狀態機: waiting / loading / playing / gameover / post_gameover
 player_websockets = {}                   # {username: websocket} → 廣播/單發使用
-skip_next_status_update = False          # 避免 post_gameover 時多發一次 status_update
+skip_next_status_update = False          # 避免 post_gameover 時多發一次 status_update (waiting)
 post_gameover_cooldown = False           # 是否剛結束過一場 → 防止立即進 loading
 
 # ---------------------------------------------------
@@ -62,7 +62,7 @@ async def register_to_control():
             await asyncio.sleep(3)
 
 # ---------------------------------------------------
-# 遊戲主控循環:控制 game_phase 狀態機 + 發 status_update
+# 遊戲主控循環:控制 game_phase 狀態機 + 發 status_update (核心)
 async def run_status_loop(ws):
     global loading_start_time, game_start_time, game_phase, skip_next_status_update
     global gameover_start_time, post_gameover_cooldown, current_scores
@@ -216,8 +216,8 @@ async def run_status_loop(ws):
 # ---------------------------------------------------
 # 發送地鼠 mole_update → 只在 playing 中觸發
 async def mole_sender():
-
     global current_mole_id, current_mole, game_phase
+
     while True:
         print("[GameServer] mole_sender 等待 phase_changed_event (playing)")
         await phase_changed_event.wait()
@@ -249,8 +249,8 @@ async def mole_sender():
                     except:
                         pass
 
-                # sleep 1~2 秒，檢查是否仍為 playing
-                sleep_time = random.uniform(1.0, 2.0)
+                # sleep 1 ~ 1.5 秒，檢查是否仍為 playing
+                sleep_time = random.uniform(0.6, 1.5)
                 start_sleep = time.time()
                 while time.time() - start_sleep < sleep_time:
                     if game_phase != "playing":

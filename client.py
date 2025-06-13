@@ -12,27 +12,24 @@ class GameClient:
         self.username = username    # 玩家帳號名稱
         self.password = password    # 玩家密碼
         # 分配到的 GameServer URL
-        self.assigned_server = None # 當前分配到的 GameServer WebSocket URL（登入成功後才會有值）
-        # 與 GameServer 的 WebSocket 連線物件
-        self.ws_conn = None         # 當前與 GameServer 保持的 WebSocket 連線 → 用來發 hit / 收事件
-        # 目前 asyncio 事件迴圈（主執行緒內）
+        self.assigned_server = None # 分配到的 GameServer WebSocket URL
+        self.ws_conn = None         # 當前與 GameServer 保持連線 → 用來發 hit / 收事件
         self.loop = asyncio.get_event_loop()
 
-        # 地鼠同步資料（由 server 廣播 mole_update 更新）
-        self.current_mole_id = -1               # 當前地鼠的 mole_id（唯一識別碼）
-        self.current_mole_position = -1         # 地鼠目前出現在哪一格（對應 grid_positions index）
-        self.current_mole_type_name = ""        # 地鼠類型名稱（普通地鼠 / 黃金地鼠 / ...）
+        # 地鼠同步資料
+        self.current_mole_id = -1               # 當前地鼠的 id（唯一識別碼）
+        self.current_mole_position = -1         # 地鼠目前出現格子（對應 grid_positions index）
+        self.current_mole_type_name = ""        # 地鼠名稱（mole / Gole mole / ...）
         self.mole_active = False                # 地鼠是否還有效可打（True:可以打，False:已被打中或消失）
 
         # 遊戲整體狀態
-        self.game_state = "waiting"             # 玩家當前遊戲狀態 → waiting / loading / ready / playing / gameover
+        self.game_state = "waiting"             # 當前遊戲狀態 → waiting / loading / ready / playing / gameover
         self.remaining_time = 10                # 遊戲剩餘秒數（GameServer 會持續更新）
         self.loading_time = 0                   # loading 倒數剩餘秒數（GameServer 會持續更新）
         self.score = 0                          # 玩家目前累積分數（本地紀錄，打中地鼠時手動累加）
 
         # 排行榜資料（收到 leaderboard_update 後更新）
-        self.leaderboard_data = []              # 排行榜資料 → list of {"username": ..., "score": ...}
-
+        self.leaderboard_data = []              # 排行榜資料
         # 狀態鎖 → 避免多執行緒/非同步操作時，資料讀寫互撞
         self.state_lock = threading.Lock()      # 讀寫上面這些狀態變數時，加鎖保護 → 確保資料一致性
 
@@ -53,11 +50,12 @@ class GameClient:
 
                 response = await ws.recv()
                 data = json.loads(response)
+                # 如果傳給中控的type資料 = login_response 且符合 success
                 if data.get("type") == "login_response" and data.get("success"):
-                    self.assigned_server = data["assigned_server"]
+                    self.assigned_server = data["assigned_server"]          # 分配 Gameserver
                     print(f"[前端] 登入成功，分配到 GameServer: {self.assigned_server}")
 
-                    # 啟動 ws_receiver
+                    # 啟動 ws_receiver 連 GameServer
                     threading.Thread(target=lambda: asyncio.run(self.ws_receiver_async()), daemon=True).start()
 
                 else:
@@ -71,11 +69,12 @@ class GameClient:
             await self.login_to_control()  # 重新 login retry
 
     async def ws_receiver_async(self):
+        # 不斷收 GameServer 訊息
         try:
             async with websockets.connect(
                 self.assigned_server,
                 origin="http://localhost"
-            ) as websocket_mole:
+            ) as websocket_mole:    # 更新當前地鼠
                 self.ws_conn = websocket_mole
                 print("[前端] WebSocket 連線 GameServer 成功")
                 await websocket_mole.send(self.username)
@@ -89,10 +88,10 @@ class GameClient:
                             with self.state_lock:
                                 if self.game_state == "playing":
                                     mole = data["mole"]
-                                    self.current_mole_id = mole["mole_id"]
-                                    self.current_mole_position = mole["position"]
-                                    self.current_mole_type_name = mole["mole_type"]
-                                    self.mole_active = mole["active"]
+                                    self.current_mole_id = mole["mole_id"]          # 唯一地鼠
+                                    self.current_mole_position = mole["position"]   # 位置
+                                    self.current_mole_type_name = mole["mole_type"] # 名稱
+                                    self.mole_active = mole["active"]               # 是否有效可打
 
                         elif data.get("event") == "leaderboard_update":
                             with self.state_lock:
@@ -109,6 +108,7 @@ class GameClient:
                             except Exception as e:
                                 print(f"[前端] 通知 ControlServer 玩家 {self.username} offline 失敗: {e}")
 
+                        # 更新 game_state / 倒數 / leaderboard
                         elif data.get("type") == "status_update":
                             with self.state_lock:
                                 game_phase = data.get("game_phase", "waiting")
@@ -142,7 +142,8 @@ class GameClient:
         except Exception as e:
             print(f"[前端] WebSocket 錯誤: {e}")
 
-    def send_hit(self):
+    # 點地鼠時 → 送 hit:mole_id:score
+    def send_hit(self): 
         try:
             asyncio.run(self.ws_conn.send(f"hit:{self.current_mole_id}:{self.score}"))
             print(f"[前端] 發送 hit:{self.current_mole_id}:{self.score} 給 GameServer")
