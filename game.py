@@ -7,6 +7,7 @@ from client import GameClient
 client = GameClient("player1", "1234")
 client.start()
 
+
 # 初始化 pygame 畫面
 pg.init()
 
@@ -14,10 +15,11 @@ white = (255, 255, 255)
 black = (0, 0, 0)
 
 width = 840
-height = 680
+height = 640
 screen = pg.display.set_mode((width, height))
 pg.display.set_caption("打地鼠")
 
+Rank_font = pg.font.SysFont(None, 24)
 font = pg.font.SysFont(None, 48)
 big_font = pg.font.SysFont(None, 96)
 
@@ -25,6 +27,8 @@ big_font = pg.font.SysFont(None, 96)
 cell_size = 160
 offset_x = (width - (cell_size * 4)) // 2
 offset_y = (height - (cell_size * 3)) // 2 + 30
+
+score_popups = []   # 儲存及時分數，飛字提示
 
 grid_positions = []
 for row in range(3):
@@ -35,10 +39,10 @@ for row in range(3):
 
 # 地鼠種類
 MOLE_TYPES = [
-    {"name": "普通地鼠", "color": (200, 100, 100), "score": +3},
-    {"name": "黃金地鼠", "color": (255, 215, 0), "score": +8},
-    {"name": "炸彈地鼠", "color": (92, 92, 92), "score": -5},
-    {"name": "賭博地鼠", "color": (128, 0, 128), "score": 0, "score_range": (-10, 20)},
+    {"name": "Mole", "color": (200, 100, 100), "score": +3},                    # 普通地鼠
+    {"name": "Gold Mole", "color": (255, 215, 0), "score": +8},                 # 黃金地鼠
+    {"name": "Bomb Mole", "color": (92, 92, 92), "score": -5},                  # 炸彈地鼠
+    {"name": "Joker Mole", "color": (128, 0, 128), "score": 0, "score_range": (-10, 20)},   # 小丑地鼠
 ]
 
 running = True
@@ -104,14 +108,14 @@ while running:
 
         # 遊戲結束 → 顯示排行榜
         leaderboard_surface = big_font.render("Leaderboard", True, white)
-        leaderboard_rect = leaderboard_surface.get_rect(center=(width / 2, 100))
+        leaderboard_rect = leaderboard_surface.get_rect(center=(width / 2, 70))
         screen.blit(leaderboard_surface, leaderboard_rect)
 
-        # 畫 leaderboard
+        # 畫 leaderboard (歷史高分)
         for idx, entry in enumerate(leaderboard_data[:5]):
-            text = f"{idx + 1}. {entry['username']} - {entry['score']}"
+            text = f"{idx + 1} {entry['username']} - {entry['score']}"
             entry_surface = font.render(text, True, white)
-            screen.blit(entry_surface, (width / 2 - 150, 100 + idx * 50))
+            screen.blit(entry_surface, (width / 2 - 120, 100 + idx * 50))
 
         # 畫 Exit 按鈕
         exit_surface = font.render("Exit", True, (255, 255, 255))
@@ -154,11 +158,48 @@ while running:
         screen.blit(score_surface, (20, 20))
         screen.blit(time_surface, (350, 20))
 
+        # === 畫右上角即時排行榜 ===
+        right_x = width - 150   # 右邊邊距
+        top_y = 30              # 從畫面頂端下來一點開始畫
+        line_height = 35        # 每一行間距
+
+        leaderboard_title_surface = font.render("Rank", True, (255, 255, 0))
+        screen.blit(leaderboard_title_surface, (right_x, top_y))
+
+        for idx, entry in enumerate(leaderboard_data):
+            text = f"{entry['username']} : {entry['score']}"
+            entry_surface = Rank_font.render(text, True, (255, 255, 255))
+            screen.blit(entry_surface, (right_x, top_y + (idx + 1) * line_height))
+
         # 畫地鼠
         if mole_active and current_mole_position >= 0:
             x, y = grid_positions[current_mole_position]
-            mole_color = next(m["color"] for m in MOLE_TYPES if m["name"] == current_mole_type_name)
-            pg.draw.circle(screen, mole_color, (x, y), 50)
+            # mole_color = next(m["color"] for m in MOLE_TYPES if m["name"] == current_mole_type_name)
+            # pg.draw.circle(screen, mole_color, (x, y), 50)
+            mole_info = next((m for m in MOLE_TYPES if m["name"] == current_mole_type_name), None)
+
+            if mole_info:
+                mole_color = mole_info["color"]
+                pg.draw.circle(screen, mole_color, (x, y), 50)
+            else:
+                print(f"[前端] 警告：未知地鼠類型 '{current_mole_type_name}' → 不畫地鼠")
+
+        # 擊中分數飛字提示
+        popup_font = pg.font.SysFont(None, 36)
+        for popup in score_popups:
+            popup_surface = popup_font.render(popup["text"], True, (255, 215, 0))
+            popup_surface.set_alpha(popup["alpha"])
+            screen.blit(popup_surface, (50, popup["y_pos"]))
+
+        # 更新 popup 狀態（往上漂、透明度變低）
+        for popup in score_popups:
+            popup["y_pos"] -= 0.25   # 每 frame 往上 1px
+            popup["alpha"] -= 0.5   # 每 frame 透明度降低
+            popup["alpha"] = max(0, popup["alpha"])  # 不低於 0
+
+        # 清理消失的 popup
+        score_popups[:] = [p for p in score_popups if p["alpha"] > 0]
+
 
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -173,13 +214,17 @@ while running:
                     print(f"打中了 {current_mole_type_name}！")
 
                     # 計算得分
-                    mole_info = next(m for m in MOLE_TYPES if m["name"] == current_mole_type_name)
+                    # mole_info = next(m for m in MOLE_TYPES if m["name"] == current_mole_type_name)
+                    mole_info = next((m for m in MOLE_TYPES if m["name"] == current_mole_type_name), None)
+
                     if "score_range" in mole_info:
                         random_score = random.randint(mole_info["score_range"][0], mole_info["score_range"][1])
                         score += random_score
-                        print(f"賭博地鼠獲得分數: {random_score}!")
+                        print(f"Joker Mole 獲得分數: {random_score}!")
                     else:
-                        score += mole_info["score"]
+                        random_score = mole_info["score"]
+                        score += random_score
+                        print(f"{current_mole_type_name} 獲得分數: {random_score}!")
 
                     # 更新 client.score → 發送 hit
                     with client.state_lock:
@@ -187,6 +232,17 @@ while running:
                     client.send_hit()
 
                     mole_active = False
+
+                    # 處理飛字提示
+                    if random_score >= 0:
+                        popup_text = f"+{random_score} {current_mole_type_name}"
+                    else:
+                        popup_text = f"{random_score} {current_mole_type_name}"   # 負數直接顯示
+                    score_popups.append({
+                        "text": popup_text,
+                        "y_pos": height - 100,    # 初始 y 座標（下方）
+                        "alpha": 255,             # 初始透明度
+                    })
 
     # 畫面更新
     pg.display.flip()

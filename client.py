@@ -114,6 +114,8 @@ class GameClient:
                                 game_phase = data.get("game_phase", "waiting")
                                 self.loading_time = data.get("loading_time", 0)
                                 self.remaining_time = data.get("remaining_time", 0)
+                                self.leaderboard_data = data.get("leaderboard", [])
+
 
                                 if game_phase == "waiting":
                                     if self.game_state != "gameover":

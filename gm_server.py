@@ -13,6 +13,7 @@ MY_GAME_SERVER_WS = "ws://127.0.0.1:8001/ws"
 phase_changed_event = asyncio.Event()    # 等待進入 playing → mole_sender 才啟動
 connected_players = set()                # 目前在線玩家 username 集合
 leaderboard = {}                         # 玩家最高分字典 {username: score}
+current_scores = {}                      # 玩家當前分數
 
 # 遊戲計時
 loading_time = 10
@@ -61,10 +62,10 @@ async def register_to_control():
             await asyncio.sleep(3)
 
 # ---------------------------------------------------
-# 遊戲主控循環 → 控制 game_phase 狀態機 + 發 status_update
+# 遊戲主控循環:控制 game_phase 狀態機 + 發 status_update
 async def run_status_loop(ws):
     global loading_start_time, game_start_time, game_phase, skip_next_status_update
-    global gameover_start_time, post_gameover_cooldown
+    global gameover_start_time, post_gameover_cooldown, current_scores
 
     loop_id = random.randint(1000, 9999)
     print(f"[GameServer] run_status_loop 啟動！loop_id = {loop_id}")
@@ -115,6 +116,8 @@ async def run_status_loop(ws):
                     # loading 結束 → 進入 playing → 觸發 mole_sender
                     game_phase = "playing"
                     game_start_time = now
+                    # 新局重設 current_scores 分數 (當前分數)
+                    current_scores = {username: 0 for username in connected_players}
                     print("[GameServer] loading 完成 → 進入 playing 60 秒")
                     phase_changed_event.set()   # 通知 mole_sender 開始發地鼠
                     print("[GameServer] phase_changed_event.set() 完成")
@@ -166,7 +169,7 @@ async def run_status_loop(ws):
                     loading_start_time = None
                     game_start_time = None
                     gameover_start_time = None
-                    leaderboard.clear()
+                    # leaderboard.clear()       # 跨局保留歷史高分
                     post_gameover_cooldown = True
                 continue
 
@@ -174,15 +177,22 @@ async def run_status_loop(ws):
             remaining_game_time = max(0, 60 - int(now - game_start_time)) if game_phase == "playing" else 0
             loading_time_left = max(0, math.ceil(10 - (now - loading_start_time))) if game_phase == "loading" else 0
 
+
+            leaderboard_list = []
+
+            for username in connected_players:
+                score = current_scores.get(username, 0)   # 沒有分數時給 0
+                leaderboard_list.append({
+                    "username": username,
+                    "score": score
+                })
+
             status_update = {
                 "type": "status_update",
                 "current_players": len(connected_players),
                 "in_game": len(connected_players) > 0,
                 "remaining_time": remaining_game_time,
-                "leaderboard": [
-                    {"username": u, "score": s}
-                    for u, s in sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
-                ],
+                "leaderboard": sorted(leaderboard_list, key=lambda x: x["score"], reverse=True),
                 "game_phase": game_phase,
                 "loading_time": loading_time_left
             }
@@ -223,7 +233,7 @@ async def mole_sender():
                 current_mole = {
                     "mole_id": current_mole_id,
                     "position": random.randint(0, 11),
-                    "mole_type": random.choice(["普通地鼠", "黃金地鼠", "炸彈地鼠", "賭博地鼠"]),
+                    "mole_type": random.choice(["Mole", "Gold Mole", "Bomb Mole", "Joker Mole"]),                    
                     "active": True
                 }
 
@@ -272,6 +282,9 @@ async def player_handler(websocket):
                 if current_mole["mole_id"] == mole_id and current_mole["active"]:
                     print(f"[GameServer] 玩家 {username} 打中地鼠 {mole_id}，分數 {player_score}")
                     current_mole["active"] = False
+
+
+                    current_scores[username] = player_score # 更新目前分數 (current_scores)
 
                     current_best = leaderboard.get(username, 0)
                     if player_score > current_best:
