@@ -104,20 +104,6 @@ GameServer 啟動
 └─ 等待玩家連線 (player_handler)
 
 
-【GameServer 主流程】
-
-register_to_control → run_status_loop → 控制遊戲流程 → status_update → ControlServer + 玩家
-                                            ↑
-                                            │ phase_changed_event.set()
-                                            ↓
-                                    mole_sender → 發地鼠給玩家
-
-【玩家進來】
-player_handler → 收 username → 加入 connected_players
-    → 收 hit:mole_id:score → 更新 current_scores / leaderboard
-    → 收 final:username:score → 更新 leaderboard
-    → 離線 → 通知 ControlServer offline
-
 👉 GameServer 是一台 自走的遊戲機：
 
 有玩家進入 → 自動進 loading / playing / gameover
@@ -138,45 +124,6 @@ playing → 會自動發地鼠，收到 hit 更新分數
 - leaderboard_data → 最新排行榜資料
 
 ---
-Client 同步流程圖
-
-GameClient 啟動 → login_to_control → 中控分配 GameServer URL
-                │
-                ▼
-        ws_receiver_async 啟動 → 連 GameServer WebSocket → 傳 username
-                │
-                ▼
-         while True → 不斷收 GameServer 訊息
-                │
-                ▼
-         判斷 data.get("event") / data.get("type")
-                │
-┌────────────────────────────────────┐
-│                                    │
-│ event = "mole_update"              │
-│ → 更新地鼠資訊：                   │
-│   current_mole_id                  │
-│   current_mole_position            │
-│   current_mole_type_name           │
-│   mole_active                      │
-└────────────────────────────────────┘
-                │
-┌────────────────────────────────────┐
-│ event = "leaderboard_update"       │
-│ → 更新 leaderboard_data            │
-│ → 設 game_state = "gameover"        │
-│ → 主動通知 ControlServer offline   │
-└────────────────────────────────────┘
-                │
-┌────────────────────────────────────┐
-│ type = "status_update"              │
-│ → 更新：                            │
-│   loading_time                      │
-│   remaining_time                    │
-│   leaderboard_data                  │
-│   game_state (根據 game_phase) → 畫不同畫面│
-└────────────────────────────────────┘
-
 
 時間線理解
 

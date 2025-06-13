@@ -17,7 +17,13 @@ current_scores = {}                      # 玩家當前當局分數
 
 # 遊戲計時
 loading_time = 10                        # loading 倒數秒數
-loading_start_time = None                
+loading_start_time = None          
+
+replay_offer_active = False
+replay_offer_start_time = None
+replay_offer_duration = 10
+replay_players = set()
+observer_players = set()
 
 GAME_DURATION = 60                       # 遊戲時間 60s
 game_start_time = None
@@ -41,7 +47,6 @@ current_special_mole = {
     "mole_type": "",
     "active": False
 }
-
 
 # 遊戲階段控制
 game_phase = "waiting"                   # 遊戲狀態機: waiting / loading / playing / gameover / post_gameover
@@ -73,10 +78,11 @@ async def register_to_control():
             await asyncio.sleep(3)
 
 # ---------------------------------------------------
-# 遊戲主控循環:控制 game_phase 狀態機 + 發 status_update (核心)
+# (核心)遊戲主控循環:控制 game_phase 狀態機 + 發 status_update 
 async def run_status_loop(ws):
     global loading_start_time, game_start_time, game_phase, skip_next_status_update
     global gameover_start_time, post_gameover_cooldown, current_scores
+    global replay_offer_active, replay_offer_start_time, replay_offer_duration, replay_players, observer_players
 
     loop_id = random.randint(1000, 9999)
     print(f"[GameServer] run_status_loop 啟動！loop_id = {loop_id}")
@@ -87,7 +93,7 @@ async def run_status_loop(ws):
         while True:
             now = time.time()
 
-            # --- playing 中，偵測是否要回 waiting ---
+            # --- playing 中，偵測是否要回 waiting --- 防止連線瞬間斷開又連上時的錯誤
             if game_phase == "playing":
                 if len(connected_players) == 0:
                     if no_player_since is None:
@@ -124,15 +130,14 @@ async def run_status_loop(ws):
                 loading_time_left = max(0, math.ceil(10 - elapsed_loading))
 
                 if loading_time_left == 0 and game_phase == "loading":
-                    # loading 結束 → 進入 playing → 觸發 mole_sender
+                    # 就在這邊放！
                     game_phase = "playing"
                     game_start_time = now
-                    # 新局重設 current_scores 分數 (當前分數)
-                    current_scores = {username: 0 for username in connected_players}
+                    current_scores = {username: 0 for username in replay_players or connected_players}
                     print("[GameServer] loading 完成 → 進入 playing 60 秒")
-                    phase_changed_event.set()   # 通知 mole_sender 開始發地鼠
+                    phase_changed_event.set()
                     print("[GameServer] phase_changed_event.set() 完成")
-                    await asyncio.sleep(0)
+
 
             # --- playing phase ---
             if game_phase == "playing":
@@ -184,6 +189,34 @@ async def run_status_loop(ws):
                     post_gameover_cooldown = True
                 continue
 
+            # --- Auto start Replay Offer ---
+            if game_phase == "waiting" and replay_offer_active:
+                elapsed_replay_offer = now - replay_offer_start_time
+                replay_offer_remaining_time = max(0, replay_offer_duration - int(elapsed_replay_offer))
+
+                # 發 replay_offer_update 給所有玩家
+                replay_offer_msg = {
+                    "event": "replay_offer_update",
+                    "remaining_time": replay_offer_remaining_time,
+                    "joined_players": len(replay_players),
+                    "total_players": len(connected_players)
+                }
+                for player, ws_conn in player_websockets.items():
+                    try:
+                        await ws_conn.send(json.dumps(replay_offer_msg))
+                    except:
+                        pass
+
+                # 倒數結束 → 開始新局
+                if replay_offer_remaining_time == 0:
+                    print("[GameServer] Replay Offer 倒數結束，開始新局")
+                    replay_offer_active = False
+                    game_phase = "loading"
+                    loading_start_time = now
+                    current_scores = {username: 0 for username in replay_players}  # 只初始化 replay_players
+                    observer_players = connected_players - replay_players
+                    # phase_changed_event.set()  # 通知 mole_sender 開始發地鼠
+
             # --- 發送 status_update + ping ---
             remaining_game_time = max(0, 60 - int(now - game_start_time)) if game_phase == "playing" else 0
             loading_time_left = max(0, math.ceil(10 - (now - loading_start_time))) if game_phase == "loading" else 0
@@ -218,6 +251,7 @@ async def run_status_loop(ws):
                     pass
 
             # heartbeat
+            # 定期ping給中控，中控可用 last_heartbeat 監控是否還活著
             await ws.send(json.dumps({"type": "ping"}))
             await asyncio.sleep(1)
 
@@ -225,7 +259,7 @@ async def run_status_loop(ws):
         print(f"[GameServer] run_status_loop 發生異常: {e}")
 
 # ---------------------------------------------------
-# 發送地鼠 mole_update → 只在 playing 中觸發
+# 一般地鼠
 async def mole_sender():
     global current_mole_id, current_mole, game_phase
 
@@ -269,6 +303,7 @@ async def mole_sender():
                         break
                     await asyncio.sleep(0.05)
 
+# 特殊地鼠
 async def special_mole_sender():
     global current_special_mole_id, current_special_mole, game_phase
 
@@ -321,15 +356,15 @@ async def special_mole_sender():
 
                 print(f"[GameServer] 發送 Special Mole ID {current_special_mole_id} at pos {current_special_mole['position']}")
 
-
 # ---------------------------------------------------
-# 處理單個玩家 WebSocket
+# 玩家斷線(驗證機制) : 處理單一玩家事件
 async def player_handler(websocket):
-    global current_mole_id, current_mole
+    global game_phase, loading_started, loading_start_time, game_start_time, gameover_start_time
+    global current_mole_id, current_mole, current_scores, leaderboard
     username = await websocket.recv()
     print(f"[GameServer] 玩家 {username} 連線進來")
-    connected_players.add(username)
-    player_websockets[username] = websocket
+    connected_players.add(username)             
+    player_websockets[username] = websocket     
 
     global post_gameover_cooldown
     post_gameover_cooldown = False
@@ -419,17 +454,32 @@ async def player_handler(websocket):
                         leaderboard[final_user] = final_score
                         print(f"[GameServer] 更新 {final_user} 的最高分為 {final_score}")
 
+                elif msg == "replay":
+                    global replay_offer_active, replay_offer_start_time, replay_players
+                    print(f"[GameServer] 收到 replay，進入 Replay Offer 階段")
+                    replay_offer_active = True
+                    replay_offer_start_time = time.time()
+                    replay_players = set()  # 重設 Replay 玩家列表
+                
+                elif msg == "join_replay":
+                    print(f"[GameServer] 玩家 {username} 選擇參加 Replay")
+                    replay_players.add(username)
+
+                       
                 else:
                     print(f"[GameServer] 收到未知訊息: {msg}")
 
             except Exception as e:
                 print(f"[GameServer] 玩家 {username} 處理訊息出錯: {e}，msg={msg}")
 
+    # 斷線通知中控
     except websockets.exceptions.ConnectionClosed:
         print(f"[GameServer] 玩家 {username} 離線")
-        connected_players.discard(username)
-        player_websockets.pop(username, None)
 
+        connected_players.discard(username)         # 把玩家從 connected_players 移除
+        player_websockets.pop(username, None)       # 把 player 的 websocket 連線移除
+
+        print(f"[GameServer] 目前在線玩家: {connected_players}")
         # 通知 ControlServer Offline
         try:
             async def notify_control_offline():
