@@ -22,11 +22,18 @@ class GameClient:
         self.current_mole_type_name = ""        # 地鼠名稱（mole / Gole mole / ...）
         self.mole_active = False                # 地鼠是否還有效可打（True:可以打，False:已被打中或消失）
 
+        # 特殊地鼠同步資料
+        self.current_special_mole_id = -1
+        self.current_special_mole_position = -1
+        self.current_special_mole_type_name = ""
+        self.special_mole_active = False
+
         # 遊戲整體狀態
         self.game_state = "waiting"             # 當前遊戲狀態 → waiting / loading / ready / playing / gameover
         self.remaining_time = 10                # 遊戲剩餘秒數（GameServer 會持續更新）
         self.loading_time = 0                   # loading 倒數剩餘秒數（GameServer 會持續更新）
         self.score = 0                          # 玩家目前累積分數（本地紀錄，打中地鼠時手動累加）
+        self.current_players = 0                # 當前遊戲台人數
 
         # 排行榜資料（收到 leaderboard_update 後更新）
         self.leaderboard_data = []              # 排行榜資料
@@ -93,6 +100,17 @@ class GameClient:
                                     self.current_mole_type_name = mole["mole_type"] # 名稱
                                     self.mole_active = mole["active"]               # 是否有效可打
 
+                        # 特殊地鼠出現邏輯
+                        elif data.get("event") == "special_mole_update":
+                            with self.state_lock:
+                                if self.game_state == "playing":
+                                    mole = data["mole"]
+                                    self.current_special_mole_id = mole["mole_id"]  
+                                    self.current_special_mole_position = mole["position"]
+                                    self.current_special_mole_type_name = mole["mole_type"]
+                                    self.special_mole_active = mole["active"]
+                                    
+
                         elif data.get("event") == "leaderboard_update":
                             with self.state_lock:
                                 self.leaderboard_data = data.get("leaderboard", [])
@@ -114,8 +132,11 @@ class GameClient:
                                 game_phase = data.get("game_phase", "waiting")
                                 self.loading_time = data.get("loading_time", 0)
                                 self.remaining_time = data.get("remaining_time", 0)
-                                self.leaderboard_data = data.get("leaderboard", [])
+                                # self.leaderboard_data = data.get("leaderboard", [])
+                                self.current_players = data.get("current_players", 0)   # 當前機台玩家人數
 
+                                if self.game_state != "gameover":
+                                    self.leaderboard_data = data.get("leaderboard", [])
 
                                 if game_phase == "waiting":
                                     if self.game_state != "gameover":
@@ -147,5 +168,12 @@ class GameClient:
         try:
             asyncio.run(self.ws_conn.send(f"hit:{self.current_mole_id}:{self.score}"))
             print(f"[前端] 發送 hit:{self.current_mole_id}:{self.score} 給 GameServer")
+        except:
+            pass
+
+    def send_special_hit(self):
+        try:
+            asyncio.run(self.ws_conn.send(f"special_hit:{self.current_special_mole_id}:{self.score}"))
+            print(f"[前端] 發送 special_hit:{self.current_special_mole_id}:{self.score} 給 GameServer")
         except:
             pass

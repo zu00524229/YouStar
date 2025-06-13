@@ -4,7 +4,7 @@ import random
 from client import GameClient
 
 # 啟動 GameClient → 負責與 ControlServer + GameServer 通訊
-client = GameClient("player1", "1234")
+client = GameClient("player2", "5678")
 client.start()
 
 
@@ -42,7 +42,8 @@ MOLE_TYPES = [
     {"name": "Mole", "color": (200, 100, 100), "score": +3},                    # 普通地鼠
     {"name": "Gold Mole", "color": (255, 215, 0), "score": +8},                 # 黃金地鼠
     {"name": "Bomb Mole", "color": (92, 92, 92), "score": -5},                  # 炸彈地鼠
-    {"name": "Joker Mole", "color": (128, 0, 128), "score": 0, "score_range": (-10, 20)},   # 小丑地鼠
+    {"name": "Diamond Mole", "color": (0, 255, 255), "score": +15},             # 特殊地鼠
+    {"name": "Joker Mole", "color": (158, 79, 0), "score": 0, "score_range": (-15, 15)},   # 小丑地鼠
 ]
 
 running = True
@@ -54,10 +55,16 @@ def handle_quit():
     running = False
     print("[前端] 玩家關閉視窗，離開遊戲。")
 
+def player_count(surface, current_players):
+    players_surface = font.render(f"Players: {current_players}", True, (255, 255, 0))
+    players_rect = players_surface.get_rect(bottomright=(width - 20, height - 20))  # 右下角
+    surface.blit(players_surface, players_rect)
+
 # 遊戲主迴圈
 while running:
     # 從 client 狀態讀取目前遊戲狀態 → 用 lock 確保同步
     with client.state_lock:        
+        current_players = client.current_players        # 當前機台玩家人數
         current_game_state = client.game_state          # 根據這個顯示當前畫面狀態
         # 玩家目前遊戲階段（waiting / loading / ready / playing / gameover）      
         
@@ -69,6 +76,10 @@ while running:
         # 當前活躍地鼠出現在哪一格（grid_positions index）
         current_mole_type_name = client.current_mole_type_name  # 地鼠類型名稱       
         mole_active = client.mole_active                        # 判斷是否可處理點擊
+
+        current_special_mole_position = client.current_special_mole_position   # 特殊地鼠位置
+        current_special_mole_type_name = client.current_special_mole_type_name # 特殊地鼠名
+        special_mole_active = client.special_mole_active            
         leaderboard_data = client.leaderboard_data              # 排行榜畫面用
         # 最新 leaderboard 資料（list of {username, score}）   
         score = client.score                            # 玩家目前分數    
@@ -80,6 +91,10 @@ while running:
 
 # =============================================================================== #
     # === 畫面顯示 ===
+    # 當前玩家人數
+    if current_game_state in ["waiting", "loading", "playing", "gameover"]:
+        player_count(screen, current_players)
+
     if current_game_state == "waiting":
         # 等待玩家進入
         waiting_surface = font.render(f"Waiting for players...", True, white)
@@ -166,8 +181,28 @@ while running:
             if mole_info:
                 mole_color = mole_info["color"]
                 pg.draw.circle(screen, mole_color, (x, y), 50)
+
+                if current_mole_type_name == "Joker Mole":
+                    question_font = pg.font.SysFont(None, 72)
+                    question_surface = question_font.render("?", True, (255, 255, 255))
+                    question_rect = question_surface.get_rect(center=(x, y))
+                    screen.blit(question_surface, question_rect)
             else:
                 print(f"[前端] 警告：未知地鼠類型 '{current_mole_type_name}' → 不畫地鼠")
+
+        # 畫特殊地鼠
+        if special_mole_active and current_special_mole_position >= 0:
+            x, y = grid_positions[current_special_mole_position]
+            
+            mole_info = next((m for m in MOLE_TYPES if m["name"] == current_special_mole_type_name), None)
+            if mole_info:
+                mole_color = mole_info["color"]
+                # pg.draw.circle(screen, mole_color, (x, y), 50)
+
+            # 畫外圈白框 (例如 55 半徑)
+                pg.draw.circle(screen, (255, 255, 255), (x, y), 55)
+                # 畫內圈實心特殊地鼠 (例如 45 半徑)
+                pg.draw.circle(screen, mole_color, (x, y), 45)
 
         # 擊中分數飛字提示
         popup_font = pg.font.SysFont(None, 36)
@@ -191,7 +226,7 @@ while running:
                 handle_quit()
 
             elif event.type == pg.MOUSEBUTTONDOWN and mole_active:
-                # 判斷是否打中地鼠
+                # 判斷是否打中一般地鼠
                 mouse_x, mouse_y = pg.mouse.get_pos()
                 x, y = grid_positions[current_mole_position]
 
@@ -228,6 +263,36 @@ while running:
                         "y_pos": height - 100,    # 初始 y 座標（下方）
                         "alpha": 255,             # 初始透明度
                     })
+                
+                # 再檢查特殊地鼠
+                elif special_mole_active and current_special_mole_position >= 0:
+                    x, y = grid_positions[current_special_mole_position]
+                    if (mouse_x - x) ** 2 + (mouse_y - y) ** 2 <= 50 ** 2:
+                        print(f"打中了 {current_special_mole_type_name}！")
+
+                        mole_info = next((m for m in MOLE_TYPES if m["name"] == current_special_mole_type_name), None)
+                        if mole_info:
+                            special_score = mole_info["score"]
+                            score += special_score
+                            print(f"{current_special_mole_type_name} 獲得分數: {special_score}!")
+
+                        # 更新 client.score → 發送 hit
+                        with client.state_lock:
+                            client.score = score
+                        client.send_special_hit()  
+
+                        # 特殊地鼠消失
+                        with client.state_lock:
+                            client.special_mole_active = False
+
+                        # 飛字提示
+                        popup_text = f"+{special_score} {current_special_mole_type_name}"
+                        score_popups.append({
+                            "text": popup_text,
+                            "y_pos": height - 100,
+                            "alpha": 255,
+                        })
+
 
     # 畫面更新
     pg.display.flip()

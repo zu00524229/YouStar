@@ -23,6 +23,7 @@ GAME_DURATION = 60                       # 遊戲時間 60s
 game_start_time = None
 gameover_start_time = None
 
+
 # 當前地鼠資訊
 current_mole_id = 0
 current_mole = {
@@ -31,6 +32,16 @@ current_mole = {
     "mole_type": "",
     "active": False
 }
+
+# 特殊地鼠邏輯
+current_special_mole_id = 0
+current_special_mole = {
+    "mole_id": 0,
+    "position": -1,
+    "mole_type": "",
+    "active": False
+}
+
 
 # 遊戲階段控制
 game_phase = "waiting"                   # 遊戲狀態機: waiting / loading / playing / gameover / post_gameover
@@ -258,6 +269,59 @@ async def mole_sender():
                         break
                     await asyncio.sleep(0.05)
 
+async def special_mole_sender():
+    global current_special_mole_id, current_special_mole, game_phase
+
+    while True:
+        await phase_changed_event.wait()
+        print("[GameServer] special_mole_sender 收到 phase_changed_event → 檢查 game_phase =", game_phase)
+
+        if game_phase == "playing":
+            # phase_changed_event.clear()
+            print("[GameServer] special_mole_sender 進入 playing loop!")
+
+            while game_phase == "playing":
+                # 每 5 ~ 10 秒出現一隻特殊地鼠
+                sleep_time = random.uniform(5.0, 10.0)
+                await asyncio.sleep(sleep_time)
+
+                if game_phase != "playing":
+                    break
+
+                # 生成特殊地鼠
+                current_special_mole_id += 1
+
+                # 避免與普通地鼠 position 重複
+                all_positions = set(range(12))  # 你 4x3 格子共 12 格
+                occupied_position = {current_mole["position"]}
+                available_positions = list(all_positions - occupied_position)
+
+                if not available_positions:
+                    print("[GameServer] 沒有可用位置放特殊地鼠，跳過這輪")
+                    continue
+
+                current_special_mole = {
+                    "mole_id": current_special_mole_id,
+                    "position": random.choice(available_positions),
+                    "mole_type": "Diamond Mole",  # 鑽石地鼠
+                    "active": True
+                }
+
+                mole_msg = {
+                    "event": "special_mole_update",
+                    "mole": current_special_mole
+                }
+
+                # 廣播特殊地鼠
+                for player, ws_conn in player_websockets.items():
+                    try:
+                        await ws_conn.send(json.dumps(mole_msg))
+                    except:
+                        pass
+
+                print(f"[GameServer] 發送 Special Mole ID {current_special_mole_id} at pos {current_special_mole['position']}")
+
+
 # ---------------------------------------------------
 # 處理單個玩家 WebSocket
 async def player_handler(websocket):
@@ -274,6 +338,7 @@ async def player_handler(websocket):
         async for msg in websocket:
             print(f"[GameServer] 收到玩家 {username} 訊息: {msg}")
 
+            # 一般地鼠
             if msg.startswith("hit:"):
                 parts = msg.split(":")
                 mole_id = int(parts[1])
@@ -301,6 +366,36 @@ async def player_handler(websocket):
                             await ws_conn.send(json.dumps(mole_msg))
                         except:
                             pass
+
+            # 特殊地鼠
+            elif msg.startswith("special_hit:"):
+                parts = msg.split(":")
+                mole_id = int(parts[1])
+                player_score = int(parts[2])
+
+                if current_special_mole["mole_id"] == mole_id and current_special_mole["active"]:
+                    print(f"[GameServer] 玩家 {username} 打中 Special Mole {mole_id}，分數 {player_score}")
+                    current_special_mole["active"] = False
+
+                    current_scores[username] = player_score
+
+                    current_best = leaderboard.get(username, 0)
+                    if player_score > current_best:
+                        leaderboard[username] = player_score
+                        print(f"[GameServer] 更新 {username} 的最高分為 {player_score}")
+
+                    mole_msg = {
+                        "event": "special_mole_update",
+                        "mole": current_special_mole
+                    }
+
+                    for player, ws_conn in player_websockets.items():
+                        try:
+                            await ws_conn.send(json.dumps(mole_msg))
+                        except:
+                            pass
+
+
                 else:
                     print(f"[GameServer] 玩家 {username} 嘗試打已消失地鼠 {mole_id}，忽略")
 
@@ -338,6 +433,7 @@ async def player_handler(websocket):
 async def main():
     asyncio.create_task(register_to_control())
     asyncio.create_task(mole_sender())
+    asyncio.create_task(special_mole_sender())
 
     server = await websockets.serve(player_handler, "0.0.0.0", 8001)
     print("[GameServer] 等待玩家連線 (port 8001) ...")
