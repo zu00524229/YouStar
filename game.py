@@ -7,6 +7,7 @@ import settings.game_settings as gs
 import UI.game_lobby as lobby
 import UI.game_play_ui as play_ui
 import UI.game_gameover_ui as gameover_ui
+
 # from settings import game_settings as gs
 
 # 啟動 GameClient → 負責與 ControlServer + GameServer 通訊
@@ -27,7 +28,7 @@ def handle_quit():
     global running
     running = False
     print("[前端] 玩家關閉視窗，離開遊戲。")
-    pg.quit()   # ⭐ 主動呼叫 pg.quit()，不用靠最後一行
+    pg.quit()   # 主動呼叫 pg.quit()，不用靠最後一行
     exit()
 
 
@@ -69,7 +70,6 @@ while running:
     leaderboard_data = state["leaderboard_data"]
     score = state["score"]
 
-
     # 時間顯示
     time_surface = gs.FONT_SIZE.render(f"Time: {current_remaining_time}s", True, gs.WHITE)
 
@@ -104,19 +104,9 @@ while running:
             if event.type == pg.QUIT:
                 handle_quit()
 
-    elif current_game_state == "ready":
-        # ready 畫面
-        ready_surface = gs.BIG_FONT_SIZE.render("Ready!", True, (255, 255, 0))
-        ready_rect = ready_surface.get_rect(center = (gs.WIDTH / 2, gs.HEIGHT / 2))
-        screen.blit(ready_surface, ready_rect)
-
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                handle_quit()
-
     # 遊戲中畫面
     if current_game_state == "playing":
-        play_ui.draw_playing_screen(screen, state, score, leaderboard_data)
+        play_ui.draw_playing_screen(screen, state, score, leaderboard_data, current_remaining_time)
         play_ui.handle_playing_events(state, client, score, handle_quit)
 
     if client.replay_offer_remaining_time > 0:
@@ -130,11 +120,11 @@ while running:
         screen.blit(joined_surface, joined_rect)
 
         # 畫 "參加 Replay" 按鈕
-        join_surface = gs.FONT_SIZE.render("Join Replay", True, (255, 255, 255))
+        join_surface = gs.FONT_SIZE.render("Replay", True, (255, 255, 255))
         join_rect = join_surface.get_rect(center=(gs.WIDTH / 2 - 100, gs.HEIGHT / 2 + 50))
 
-        # 畫 "Skip Replay" 按鈕
-        skip_surface = gs.FONT_SIZE.render("Skip", True, (255, 255, 255))
+        # 畫 "回到觀戰(Watch)" 按鈕
+        skip_surface = gs.FONT_SIZE.render("Watch", True, (255, 255, 255))
         skip_rect = skip_surface.get_rect(center=(gs.WIDTH / 2 + 100, gs.HEIGHT / 2 + 50))
 
         # Hover 效果

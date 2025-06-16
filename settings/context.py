@@ -14,11 +14,11 @@ current_scores = {}                      # 玩家當前當局分數
 loading_time = 10                        # loading 倒數秒數
 loading_start_time = None          
 
-replay_offer_active = False
-replay_offer_start_time = None
-replay_offer_duration = 10
-replay_players = set()
-observer_players = set()
+replay_offer_active = False              # 檢查 是否正在提供 Replay 選項給玩家
+replay_offer_start_time = None           # 用來計算Replay倒數時間
+# replay_offer_duration = 10               # 提供Replay時間
+replay_players = set()                   # 當集合人數達標，啟動下一局
+observer_players = set()                 # 用來標記這些玩家不會餐與下一輪
 
 GAME_DURATION = 60                       # 遊戲時間 60s
 game_start_time = None
@@ -48,3 +48,5 @@ game_phase = "waiting"                   # 遊戲狀態機: waiting / loading / 
 player_websockets = {}                   # {username: websocket} → 廣播/單發使用
 skip_next_status_update = False          # 避免 post_gameover 時多發一次 status_update (waiting)
 post_gameover_cooldown = False           # 是否剛結束過一場 → 防止立即進 loading
+no_player_since = None   # 記錄 playing 中，何時開始沒玩家 → 自動回 waiting
+

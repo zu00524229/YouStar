@@ -125,9 +125,14 @@ def handle_playing_events(state, client, score, handle_quit):
                         popup_text = f"+{special_score} {current_special_mole_type_name}"
                         gs.score_popups.append({"text": popup_text, "y_pos": gs.HEIGHT - 100, "alpha": 255})
 
-def draw_playing_screen(screen, state, score, leaderboard_data):
-    draw_score(screen, score)
-    draw_time(screen, state["remaining_time"])
-    draw_live_leaderboard(screen, leaderboard_data)
-    draw_moles(screen, state)
-    draw_score_popups(screen)
+def draw_playing_screen(screen, state, score, leaderboard_data, remaining_time):
+    draw_score(screen, score)                           # 分數顯示
+    draw_time(screen, state["remaining_time"])          # 倒數時間顯示
+    draw_live_leaderboard(screen, leaderboard_data)     # 即時排行榜
+    draw_moles(screen, state)                           # 普通/特殊地鼠顯示
+    draw_score_popups(screen)                           # 擊中地鼠的分數彈出動畫
+    
+    # ➕ 顯示倒數時間（右上角）
+    time_surface = gs.FONT_SIZE.render(f"Time: {remaining_time}s", True, gs.WHITE)
+    screen.blit(time_surface, (350, 20))  # 可以根據你畫面佈局微調位置
+

@@ -21,7 +21,7 @@ def draw_gameover_screen(screen, leaderboard_data, handle_quit, client):
     screen.blit(exit_surface, exit_rect)
 
     # Replay 按鈕
-    replay_surface = gs.FONT_SIZE.render("Play Again", True, (255, 255, 255))
+    replay_surface = gs.FONT_SIZE.render("Again?", True, (255, 255, 255))
     replay_rect = replay_surface.get_rect(center=(gs.WIDTH / 2 + 100, gs.HEIGHT / 2 + 200))
     pg.draw.rect(screen, (100, 100, 100), replay_rect.inflate(20, 10))
     screen.blit(replay_surface, replay_rect)

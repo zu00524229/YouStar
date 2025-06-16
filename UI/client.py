@@ -191,6 +191,7 @@ class GameClient:
                                 self.loading_time = data.get("loading_time", 0)
                                 self.remaining_time = data.get("remaining_time", 0)
                                 self.current_players = data.get("current_players", 0)
+                               
 
                                 if self.game_state != "gameover":
                                     self.leaderboard_data = data.get("leaderboard", [])
@@ -210,7 +211,8 @@ class GameClient:
                                     if self.game_state != "gameover":
                                         print("[前端][Status WS] GameServer 進入 gameover phase")
                                         self.game_state = "gameover"
-
+                            # print(f"[Client] 收到遊戲狀態: remaining_time = {self.remaining_time}")
+                        
                         elif data.get("event") == "replay_offer_update":
                             remaining_time = data.get("remaining_time", 0)
                             with self.state_lock:
