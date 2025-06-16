@@ -43,6 +43,29 @@ class GameClient:
         self.leaderboard_data = []
         self.state_lock = threading.Lock()
 
+    def sync_game_state(self):
+        with self.state_lock:
+            return {
+                "current_players": self.current_players,
+                "game_state": self.game_state,
+                "remaining_time": self.remaining_time,
+                "loading_time": self.loading_time,
+                "current_mole_id": self.current_mole_id,
+                "current_mole_position": self.current_mole_position,
+                "current_mole_type_name": self.current_mole_type_name,
+                "mole_active": self.mole_active,
+                "current_special_mole_position": self.current_special_mole_position,
+                "current_special_mole_type_name": self.current_special_mole_type_name,
+                "special_mole_active": self.special_mole_active,
+                "leaderboard_data": self.leaderboard_data,
+                "score": self.score,
+                "replay_offer_remaining_time": self.replay_offer_remaining_time,
+                "replay_offer_joined_players": self.replay_offer_joined_players,
+                "replay_offer_total_players": self.replay_offer_total_players,
+            }
+
+
+
     def start(self):
         threading.Thread(target=self._start_login, daemon=True).start()
 
