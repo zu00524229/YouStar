@@ -29,7 +29,7 @@ async def handle_playing_phase():
 
     # --- 檢查是否遊戲時間已結束 ---
     elapsed_game = now - ct.game_start_time
-    remaining_game_time = max(0, 60 - int(elapsed_game))
+    remaining_game_time = max(0, ct.GAME_DURATION - int(elapsed_game))
 
     if remaining_game_time == 0 and ct.game_phase == "playing":
         print("[GameServer] 遊戲結束，進入 gameover")

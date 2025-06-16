@@ -66,6 +66,7 @@ while running:
     current_special_mole_type_name = state["current_special_mole_type_name"]
     special_mole_active = state["special_mole_active"]
 
+    
     # 分數與排行榜
     leaderboard_data = state["leaderboard_data"]
     score = state["score"]
@@ -110,35 +111,38 @@ while running:
         play_ui.handle_playing_events(state, client, score, handle_quit)
 
     if client.replay_offer_remaining_time > 0:
-        replay_offer_surface = gs.BIG_FONT_SIZE.render(f"Replay? {client.replay_offer_remaining_time} s", True, (255, 165, 0))
+        # 倒數時間
+        replay_offer_surface = gs.BIG_FONT_SIZE.render(
+            f"Replay? {client.replay_offer_remaining_time} s", True, (255, 165, 0))
         replay_offer_rect = replay_offer_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT / 2 - 120))
         screen.blit(replay_offer_surface, replay_offer_rect)
 
-        joined_text = f"{client.replay_offer_joined_players}/{client.replay_offer_total_players} players ready"
+        # 顯示人數
+        joined_count = len(client.replay_offer_joined_players)
+        joined_text = f"{joined_count} player{'s' if joined_count != 1 else ''} ready"
         joined_surface = gs.FONT_SIZE.render(joined_text, True, (255, 255, 255))
         joined_rect = joined_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT / 2 - 60))
         screen.blit(joined_surface, joined_rect)
 
-        # 畫 "參加 Replay" 按鈕
-        join_surface = gs.FONT_SIZE.render("Replay", True, (255, 255, 255))
-        join_rect = join_surface.get_rect(center=(gs.WIDTH / 2 - 100, gs.HEIGHT / 2 + 50))
-
-        # 畫 "回到觀戰(Watch)" 按鈕
-        skip_surface = gs.FONT_SIZE.render("Watch", True, (255, 255, 255))
-        skip_rect = skip_surface.get_rect(center=(gs.WIDTH / 2 + 100, gs.HEIGHT / 2 + 50))
-
-        # Hover 效果
+        # 滑鼠位置
         mouse_x, mouse_y = pg.mouse.get_pos()
-        is_hover_join = join_rect.collidepoint(mouse_x, mouse_y)
-        is_hover_skip = skip_rect.collidepoint(mouse_x, mouse_y)
 
-        join_box_color = (255, 165, 0) if is_hover_join else (180, 100, 50)
-        skip_box_color = (255, 165, 0) if is_hover_skip else (180, 100, 50)
-
-        pg.draw.rect(screen, join_box_color, join_rect.inflate(20, 10))
+        # Replay 按鈕
+        join_text = "Replay"
+        join_surface = gs.FONT_SIZE.render(join_text, True, (255, 255, 255))
+        join_rect = join_surface.get_rect(center=(gs.WIDTH / 2 - 100, gs.HEIGHT / 2 + 50))
+        is_hover_join = join_rect.collidepoint(mouse_x, mouse_y)            # hover 效果
+        join_color = (100, 200, 255) if is_hover_join else (255, 255, 255)  # hover 顏色
+        join_surface = gs.FONT_SIZE.render(join_text, True, join_color)
         screen.blit(join_surface, join_rect)
 
-        pg.draw.rect(screen, skip_box_color, skip_rect.inflate(20, 10))
+        # Watch 按鈕
+        skip_text = "Watch"
+        skip_surface = gs.FONT_SIZE.render(skip_text, True, (255, 255, 255))
+        skip_rect = skip_surface.get_rect(center=(gs.WIDTH / 2 + 100, gs.HEIGHT / 2 + 50))
+        is_hover_skip = skip_rect.collidepoint(mouse_x, mouse_y)            # hover 效果
+        skip_color = (255, 100, 100) if is_hover_skip else (255, 255, 255)  # hover 顏色
+        skip_surface = gs.FONT_SIZE.render(skip_text, True, skip_color)
         screen.blit(skip_surface, skip_rect)
 
         # 處理 Replay Offer 按鈕點擊

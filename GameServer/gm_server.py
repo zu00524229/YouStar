@@ -77,7 +77,7 @@ async def run_status_loop(ws):
                     print("[GameServer] replay_offer_start_time 是 None，略過 handle_replay_offer")
             
             if ct.game_phase == "playing" and ct.game_start_time is not None:
-                remaining_game_time = max(0, 60 - int(now - ct.game_start_time))
+                remaining_game_time = max(0, ct.GAME_DURATION - int(now - ct.game_start_time))
             else:
                 remaining_game_time = 0
 

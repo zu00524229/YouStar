@@ -20,7 +20,7 @@ replay_offer_start_time = None           # 用來計算Replay倒數時間
 replay_players = set()                   # 當集合人數達標，啟動下一局
 observer_players = set()                 # 用來標記這些玩家不會餐與下一輪
 
-GAME_DURATION = 60                       # 遊戲時間 60s
+GAME_DURATION = 10                       # 遊戲時間 60s
 game_start_time = None
 gameover_start_time = None
 

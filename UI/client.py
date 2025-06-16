@@ -13,12 +13,16 @@ class GameClient:
         self.assigned_server = None # 分配到的 GameServer WebSocket URL
         self.ws_conn = None         # 當前與 GameServer 保持連線 → 用來發 hit / 收事件
         self.loop = asyncio.get_event_loop()
-        self.replay_offer_remaining_time = 0
-        self.replay_offer_joined_players = 0
+        self.replay_offer_remaining_time = 0        # 剩餘倒數時間（伺服器提供
+        self.replay_offer_joined_players = 0        # 總共可參與人數（伺服器提供）
+        self.replay_offer_started = False           # 是否已進入 Replay 倒數階段（避免重複點擊 Again）
+        self.replay_offer_joined_players = set()    # 有點擊 Ready 的玩家名單（你可選擇顯示）
         self.replay_offer_total_players = 0
 
+        
+
         # 狀態 flag
-        self.login_success = False   # ⭐ 新增：是否已登入成功 → 等待用
+        self.login_success = False   # 新增：是否已登入成功
 
         # 地鼠同步資料
         self.current_mole_id = -1
@@ -152,6 +156,12 @@ class GameClient:
                     try:
                         data = json.loads(msg)
 
+                        if data.get("event") == "status_update":
+                            phase = data.get("game_phase")
+                            if phase:
+                                self.game_state = phase
+                                print(f"[前端] 狀態更新 → game_state = {self.game_state}")
+
                         if data.get("event") == "mole_update":
                             with self.state_lock:
                                 if self.game_state == "playing":
@@ -174,6 +184,8 @@ class GameClient:
                             with self.state_lock:
                                 self.leaderboard_data = data.get("leaderboard", [])
                                 self.game_state = "gameover"
+
+                        
 
                             try:
                                 async with websockets.connect(CONTROL_SERVER_WS) as ws_offline:
@@ -215,9 +227,23 @@ class GameClient:
                         
                         elif data.get("event") == "replay_offer_update":
                             remaining_time = data.get("remaining_time", 0)
+                            joined_usernames = data.get("joined_usernames", [])
+                            total_players = data.get("total_players", 0)
+
                             with self.state_lock:
                                 self.replay_offer_remaining_time = remaining_time
-                            print(f"[前端] 收到 Replay Offer 倒數 {remaining_time} 秒")
+                                self.replay_offer_joined_players = set(joined_usernames)
+                                self.replay_offer_total_players = total_players
+                                self.replay_offer_started = True
+
+                            print(f"[前端] Replay Offer 倒數 {remaining_time}s，已加入：{joined_usernames} / 全部：{total_players}")
+
+                        elif data.get("event") == "replay_end":
+                            with self.state_lock:
+                                self.replay_offer_started = False
+                                self.replay_offer_remaining_time = 0
+                                self.replay_offer_joined_players.clear()
+                                print("[前端] 收到 replay_end，重置 replay 狀態")
 
 
                     except Exception as e:
@@ -257,4 +283,11 @@ class GameClient:
             print("[前端] 發送 join_replay 給 GameServer")
         except:
             pass
+
+    def reset_replay_offer(self):
+        with self.state_lock:
+            self.replay_offer_started = False
+            self.replay_offer_joined_players.clear()
+            self.replay_offer_remaining_time = 0
+            # print("[client] Reset replay offer state")
 
