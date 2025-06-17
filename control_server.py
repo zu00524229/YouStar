@@ -16,6 +16,7 @@ fake_users = {
 # 狀態表初始化
 gameserver_status = {}      # 儲存每一台已連線的 GameServer 狀態（connected / current_players / game_phase / leaderboard / last_heartbeat）
 player_online_status = {}   # 儲存當前在線玩家狀態，防止重複登入
+websocket_identity_map = {} # websocket: username or GameServer
 
 # 中控 自動檢查 GameServer 是否掉線
 async def heartbeat_checker():
@@ -38,6 +39,7 @@ async def handle_client(websocket):
             # GameServer 註冊流程（這台會進入自己的 loop）
             if data.get("type") == "register_gameserver":
                 server_url = data["server_url"]
+                websocket_identity_map[websocket] = f"GameServer:{server_url}"      # 識別"誰" 從 "哪台"GameServer" 斷線
                 print(f"[Register] GameServer 註冊: {server_url}")
 
                 gameserver_status[server_url] = {
@@ -92,6 +94,7 @@ async def handle_client(websocket):
                         }))
                     else:
                         player_online_status[username] = None
+                        websocket_identity_map[websocket] = f"Player:{username}"  # 加入識別
                         await websocket.send(json.dumps({
                             "type": "login_response",
                             "success": True
@@ -103,7 +106,7 @@ async def handle_client(websocket):
                         "reason": "帳號或密碼錯誤"
                     }))
 
-            # get_server_list：✅這段現在才會被處理到
+            # get_server_list：這段現在才會被處理到
             elif data.get("type") == "get_server_list":
                 print(f"[中控] 收到 get_server_list 請求")
                 server_list = []
@@ -153,8 +156,19 @@ async def handle_client(websocket):
                         "error": "GameServer 未找到"
                     }))
 
+            elif data.get("type") == "player_joined":
+                username = data["username"]
+                server_url = data["server_url"]
+                player_online_status[username] = server_url
+                print(f"[Player Join] 玩家 {username} 加入 → {server_url}")
+
+
     except websockets.exceptions.ConnectionClosed:
-        print(f"[Disconnect] 有 client 斷線")
+        identity = websocket_identity_map.pop(websocket, None)
+        if identity:
+            print(f"[Disconnect] {identity} 斷線")
+        else:
+            print(f"[Disconnect] 匿名 client 斷線（可能是 login/get_server_list 臨時連線）")
 
 # 啟動 WebSocket Server + heartbeat_checker
 async def main():

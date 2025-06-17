@@ -1,4 +1,4 @@
-# 給GameServer 玩家廣播 Ready 訊息
+# broadcaster.py    :   給GameServer 玩家廣播  訊息
 import json
 import settings.context as ct
 

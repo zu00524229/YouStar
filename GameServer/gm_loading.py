@@ -1,4 +1,4 @@
-# GameServer : 管理 loading 邏輯
+# gm_loading.py     :   GameServer : 管理 loading 邏輯
 
 import time
 import math
@@ -23,13 +23,13 @@ async def handle_loading_phase():
     if loading_time_left == 0 and ct.game_phase == "loading":
         ct.game_phase = "playing"
         ct.game_start_time = now
-        # ct.current_scores = {username: 0 for username in ct.replay_players or ct.connected_players}
-        active_players = ct.replay_players if ct.replay_players else ct.connected_players
+        # ct.current_scores = {username: 0 for username in ct.ready_players or ct.connected_players}
+        active_players = ct.ready_players if ct.ready_players else ct.connected_players
         ct.current_scores = {username: 0 for username in active_players}
 
 
-        if ct.replay_players:
-            print("[GameServer] Replay 模式 → loading 完成，進入 playing")
+        if ct.ready_players:
+            print("[GameServer] ready 模式 → loading 完成，進入 playing")
         else:
             print("[GameServer] 首局 loading 完成 → 進入 playing")
 

@@ -1,10 +1,11 @@
 # game.py : 遊戲主程式
 import pygame as pg
 # import random
+import asyncio
 from UI.client import GameClient
 import time
 import settings.game_settings as gs
-import UI.game_lobby as lobby
+import UI.game_lobby as lob
 import UI.game_play_ui as play_ui
 import UI.game_gameover_ui as gameover_ui
 import UI.login_ui as log
@@ -24,19 +25,21 @@ client.start_ws_receiver()
 
 
 screen = pg.display.set_mode((gs.WIDTH, gs.HEIGHT))
-pg.display.set_caption("打地鼠")
+pg.display.set_caption("Whack Legends")
 
 running = True
 clock = pg.time.Clock()
 
 
-_original_connect = websockets.connect
+# _original_connect = websockets.connect
 
-def debug_connect(uri, *args, **kwargs):
-    print(f"[debug patch] websockets.connect 被呼叫，URI = {uri!r}")
-    return _original_connect(uri, *args, **kwargs)
+# def debug_connect(uri, *args, **kwargs):
+#     print(f"[debug patch] websockets.connect 被呼叫，URI = {uri!r}")
+#     return _original_connect(uri, *args, **kwargs)
 
-websockets.connect = debug_connect
+# websockets.connect = debug_connect
+
+
 # 處理退出遊戲
 def handle_quit():
     global running
@@ -44,6 +47,29 @@ def handle_quit():
     print("[前端] 玩家關閉視窗，離開遊戲。")
     pg.quit()   # 主動呼叫 pg.quit()，不用靠最後一行
     exit()
+
+def safely_close_client(client):
+    try:
+        if client.ws_conn:
+            loop = client.ws_conn.loop  # 拿到 ws_conn 所屬的 loop
+            loop.call_soon_threadsafe(asyncio.create_task, client.ws_conn.close())
+            print("[debug] 已要求關閉 client WebSocket")
+    except Exception as e:
+        print(f"[debug] 關閉 WebSocket 發生錯誤: {e}")
+
+
+# === 返回主大廳，保持 game 開啟 ===
+def handle_quit_to_lobby(screen, client):
+    safely_close_client(client)  # 改為同步呼叫
+    # --- 強制中斷與 GameServer 的連線（或重設）
+    # asyncio.run(safely_close_client(client))  # 確保連線被清掉
+    client.ws_conn = None
+    client.ws_started = False  # 重設讓下一場可以再啟用 receiver
+    client.ready_offer_started = False
+    client.ready_offer_joined_players = set()
+    
+    # --- 返回 lobby 畫面
+    lob.show_lobby(screen, client, handle_quit)
 
 
 # 當前機台玩家人數
@@ -56,7 +82,7 @@ while not client.login_success:
     print("[大廳] 等待登入完成...")
     time.sleep(0.1)
 
-lobby.show_lobby(screen, client, handle_quit)  # 秀遊戲大廳
+lob.show_lobby(screen, client, handle_quit)  # 秀遊戲大廳
 # 遊戲主迴圈
 while running:
     # === 遊戲狀態同步 ===
@@ -106,10 +132,10 @@ while running:
 
     # 遊戲結束時畫面
     if current_game_state == "gameover":
-        gameover_ui.draw_gameover_screen(screen, leaderboard_data, handle_quit, client)
+        gameover_ui.draw_gameover_screen(screen, leaderboard_data, handle_quit, client, handle_quit_to_lobby)
 
+    # loading 倒數畫面
     elif current_game_state == "loading":
-        # loading 倒數畫面
         loading_surface = gs.FONT_SIZE.render(f"Loading..{current_loading_time} s", True, gs.WHITE)
         loading_rect = loading_surface.get_rect(center = (gs.WIDTH / 2, gs.HEIGHT / 2))
         screen.blit(loading_surface, loading_rect)
@@ -123,42 +149,42 @@ while running:
         play_ui.draw_playing_screen(screen, state, score, leaderboard_data, current_remaining_time)
         play_ui.handle_playing_events(state, client, score, handle_quit)
 
-    if client.replay_offer_remaining_time > 0:
+    if client.ready_offer_remaining_time > 0:
         # 倒數時間
-        replay_offer_surface = gs.BIG_FONT_SIZE.render(
-            f"Replay? {client.replay_offer_remaining_time} s", True, (255, 165, 0))
-        replay_offer_rect = replay_offer_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT / 2 - 120))
-        screen.blit(replay_offer_surface, replay_offer_rect)
+        ready_offer_surface = gs.BIG_FONT_SIZE.render(
+            f"ready? {client.ready_offer_remaining_time} s", True, (255, 165, 0))
+        ready_offer_rect = ready_offer_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT / 2 - 120))
+        screen.blit(ready_offer_surface, ready_offer_rect)
 
         # 顯示人數
-        joined_count = len(client.replay_offer_joined_players)
+        joined_count = len(client.ready_offer_joined_players)
         joined_text = f"{joined_count} player{'s' if joined_count != 1 else ''} ready"
-        joined_surface = gs.FONT_SIZE.render(joined_text, True, (255, 255, 255))
+        joined_surface = gs.FONT_SIZE.render(joined_text, True, (gs.WHITE))
         joined_rect = joined_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT / 2 - 60))
         screen.blit(joined_surface, joined_rect)
 
         # 滑鼠位置
         mouse_x, mouse_y = pg.mouse.get_pos()
 
-        # Replay 按鈕
-        join_text = "Replay"
-        join_surface = gs.FONT_SIZE.render(join_text, True, (255, 255, 255))
+        # ready 按鈕
+        join_text = "ready"
+        join_surface = gs.FONT_SIZE.render(join_text, True, (gs.WHITE))
         join_rect = join_surface.get_rect(center=(gs.WIDTH / 2 - 100, gs.HEIGHT / 2 + 50))
         is_hover_join = join_rect.collidepoint(mouse_x, mouse_y)            # hover 效果
-        join_color = (100, 200, 255) if is_hover_join else (255, 255, 255)  # hover 顏色
+        join_color = (100, 200, 255) if is_hover_join else (gs.WHITE)  # hover 顏色
         join_surface = gs.FONT_SIZE.render(join_text, True, join_color)
         screen.blit(join_surface, join_rect)
 
         # Watch 按鈕
         skip_text = "Watch"
-        skip_surface = gs.FONT_SIZE.render(skip_text, True, (255, 255, 255))
+        skip_surface = gs.FONT_SIZE.render(skip_text, True, (gs.WHITE))
         skip_rect = skip_surface.get_rect(center=(gs.WIDTH / 2 + 100, gs.HEIGHT / 2 + 50))
         is_hover_skip = skip_rect.collidepoint(mouse_x, mouse_y)            # hover 效果
-        skip_color = (255, 100, 100) if is_hover_skip else (255, 255, 255)  # hover 顏色
+        skip_color = (255, 100, 100) if is_hover_skip else (gs.WHITE)  # hover 顏色
         skip_surface = gs.FONT_SIZE.render(skip_text, True, skip_color)
         screen.blit(skip_surface, skip_rect)
 
-        # 處理 Replay Offer 按鈕點擊
+        # 處理 ready Offer 按鈕點擊
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 handle_quit()
@@ -166,10 +192,10 @@ while running:
             elif event.type == pg.MOUSEBUTTONDOWN:
                 mouse_x, mouse_y = pg.mouse.get_pos()
                 if join_rect.collidepoint(mouse_x, mouse_y):
-                    print("[前端] 玩家選擇參加 Replay，發送 join_replay")
-                    client.send_join_replay()
+                    print("[前端] 玩家選擇參加 ready，發送 join_ready")
+                    client.send_join_ready()
                 elif skip_rect.collidepoint(mouse_x, mouse_y):
-                    print("[前端] 玩家選擇跳過 Replay（觀戰）")
+                    print("[前端] 玩家選擇跳過 ready（觀戰）")
 
 
 

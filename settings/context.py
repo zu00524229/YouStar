@@ -1,4 +1,4 @@
-# gm_server.py 的變數管理
+# context.py        :   gm_server.py 的變數管理
 import asyncio
 # 配置
 CONTROL_SERVER_WS = "ws://127.0.0.1:8765"
@@ -12,16 +12,16 @@ leaderboard = {}                         # 玩家最高分字典 {username: scor
 current_scores = {}                      # 玩家當前當局分數
 
 # 遊戲計時
-loading_time = 10                        # loading 倒數秒數
+loading_time = 3                        # loading 倒數秒數
 loading_start_time = None          
 
-replay_offer_active = False              # 檢查 是否正在提供 Replay 選項給玩家
-replay_offer_start_time = None           # 用來計算Replay倒數時間
-# replay_offer_duration = 10               # 提供Replay時間
-replay_players = set()                   # 當集合人數達標，啟動下一局
+ready_offer_active = False              # 檢查 是否正在提供 ready 選項給玩家
+ready_offer_start_time = None           # 用來計算ready倒數時間
+# ready_offer_duration = 10               # 提供ready時間
+ready_players = set()                   # 當集合人數達標，啟動下一局
 observer_players = set()                 # 用來標記這些玩家不會餐與下一輪
 
-GAME_DURATION = 10                       # 遊戲時間 60s
+GAME_DURATION = 3                       # 遊戲時間 60s
 game_start_time = None
 gameover_start_time = None
 

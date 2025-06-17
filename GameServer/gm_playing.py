@@ -1,5 +1,4 @@
-# GameServer 管理 playing 邏輯
-# GameServer/gm_playing.py
+# gm_playing.py     :   GameServer 管理 playing 邏輯
 import time
 import json
 import settings.context as ct

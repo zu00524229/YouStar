@@ -1,6 +1,6 @@
 
 
-# game.py 遊戲中畫面  
+# game_play_ui.py       :   game.py 遊戲中畫面  
 import pygame as pg
 import settings.game_settings as gs
 import random
@@ -26,7 +26,7 @@ def draw_live_leaderboard(screen, leaderboard_data):
 
     for idx, entry in enumerate(leaderboard_data):
         text = f"{entry['username']} : {entry['score']}"
-        entry_surface = gs.RANK_FONT_SIZE.render(text, True, (255, 255, 255))
+        entry_surface = gs.RANK_FONT_SIZE.render(text, True, (gs.WHITE))
         screen.blit(entry_surface, (right_x, top_y + (idx + 1) * line_height))
 
 # 繪製飛字提示
@@ -58,7 +58,7 @@ def draw_moles(screen, state):
 
             if state["current_mole_type_name"] == "Joker Mole":
                 question_font = pg.font.SysFont(None, 72)
-                question_surface = question_font.render("?", True, (255, 255, 255))
+                question_surface = question_font.render("?", True, (gs.WHITE))
                 question_rect = question_surface.get_rect(center=(x, y))
                 screen.blit(question_surface, question_rect)
 
@@ -68,7 +68,7 @@ def draw_moles(screen, state):
         mole_info = next((m for m in gs.MOLE_TYPES if m["name"] == state["current_special_mole_type_name"]), None)
         if mole_info:
             mole_color = mole_info["color"]
-            pg.draw.circle(screen, (255, 255, 255), (x, y), 55)  # 外圈白框
+            pg.draw.circle(screen, (gs.WHITE), (x, y), 55)  # 外圈白框
             pg.draw.circle(screen, mole_color, (x, y), 45)      # 內圈地鼠
 
 # 處理打地鼠
@@ -82,7 +82,7 @@ def handle_playing_events(state, client, score, handle_quit):
 
     for event in pg.event.get():
         if event.type == pg.QUIT:
-            handle_quit()
+            handle_quit()  # 回遊戲大廳
 
         elif event.type == pg.MOUSEBUTTONDOWN and mole_active:
             mouse_x, mouse_y = pg.mouse.get_pos()

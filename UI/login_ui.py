@@ -11,7 +11,7 @@ import settings.context as ct
 pg.init()
 
 screen = pg.display.set_mode((gs.WIDTH, gs.HEIGHT))
-pg.display.set_caption("登入畫面")
+pg.display.set_caption("Whack Legends")
 
 # FONT = gs.FONT_SIZE
 WHITE, BLACK, BLUE = gs.WHITE, gs.BLACK, gs.LOGIN_BLUE
@@ -156,7 +156,7 @@ def login_to_control(username, password):
 
     client = GameClient(username, password)
     _control_loop.run_until_complete(_login_async(client))
-    print(f"[Debug] login_to_control 結束時 client.server_list 長這樣：{client.server_list}")
+    # print(f"[Debug] login_to_control 結束時 client.server_list 長這樣：{client.server_list}")
     return client if client.login_success else None
 
 
@@ -182,7 +182,7 @@ async def _login_async(client):
 
                 if data.get("type") == "get_server_list_response":
                     client.server_list = data.get("server_list", [])
-                    print(f"[Debug] client.server_list = {client.server_list}")
+                    # print(f"[Debug] client.server_list = {client.server_list}")
                     print(f"[前端] 取得 GameServer 列表，共 {len(client.server_list)} 台：")
                     for i, server in enumerate(client.server_list):
                         print(f"  [{i}] {server['server_url']} | players: {server['current_players']}/{server['max_players']} | phase: {server['game_phase']}")

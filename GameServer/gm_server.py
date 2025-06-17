@@ -1,4 +1,4 @@
-# Gameserver 主程式 
+# gm_server.py      :   Gameserver 主程式 
 import asyncio
 import websockets
 import json
@@ -6,14 +6,12 @@ import time
 import random
 import math
 import settings.context as ct
-from GameServer.gm_mole import mole_sender, special_mole_sender, player_handler
+from GameServer.player_handler import player_handler
+from GameServer.gm_mole import mole_sender, special_mole_sender
 import GameServer.gm_playing as gm_play
 import GameServer.gm_loading as gm_load
 import GameServer.gm_gameover as gm_over
 import GameServer.gm_waiting as gm_wait
-
-
-# mole_sender、special_mole_sender、player_handler 已模組化到 gm_mole.py
 
 # ---------------------------------------------------
 # 向 ControlServer 註冊自己 & 持續報 status / ping
@@ -71,11 +69,11 @@ async def run_status_loop(ws):
                 continue
         
             # --- waiting -- 遊戲待機階段
-            if ct.game_phase == "waiting" and ct.replay_offer_active:
-                if ct.replay_offer_start_time is not None:
-                    await gm_wait.handle_replay_offer(now)
+            if ct.game_phase == "waiting" and ct.ready_offer_active:
+                if ct.ready_offer_start_time is not None:
+                    await gm_wait.handle_ready_offer(now)
                 else:
-                    print("[GameServer] replay_offer_start_time 是 None，略過 handle_replay_offer")
+                    print("[GameServer] ready_offer_start_time 是 None，略過 handle_ready_offer")
             
             if ct.game_phase == "playing" and ct.game_start_time is not None:
                 remaining_game_time = max(0, ct.GAME_DURATION - int(now - ct.game_start_time))
@@ -129,6 +127,7 @@ async def main():
 
     server = await websockets.serve(player_handler, "0.0.0.0", 8001)
     print("[GameServer] 等待玩家連線 (port 8001) ...")
+    await asyncio.Future()  # run forever
     await server.wait_closed()
 
 # run

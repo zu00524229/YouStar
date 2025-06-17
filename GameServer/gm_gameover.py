@@ -1,4 +1,4 @@
-# GameServer : 管理 gameover 與 post_gameover 階段邏輯
+# gm_gameover.py    :  GameServer : 管理 gameover 與 post_gameover 階段邏輯
 
 import time
 import asyncio

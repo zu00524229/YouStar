@@ -1,6 +1,6 @@
-# game.py 的遊戲大廳邏輯
-import threading
-import asyncio
+# game_lobby.py     :   game.py 的遊戲大廳邏輯
+# import threading
+# import asyncio
 import pygame as pg
 import settings.game_settings as gs
 
@@ -21,7 +21,7 @@ def render_server_status(surface, server, box_y, mouse_x, mouse_y, index):
     pg.draw.rect(surface, (200, 200, 200), box_rect, 2)  # 外框線
 
     # Server 名字用大字
-    server_name_surface = gs.FONT_SIZE.render(f"GameServer {index + 1}", True, (255, 255, 255))
+    server_name_surface = gs.FONT_SIZE.render(f"GameServer {index + 1}", True, (gs.WHITE))
     server_name_rect = server_name_surface.get_rect(topleft=(box_x + 20, box_y + 10))
     surface.blit(server_name_surface, server_name_rect)
 
@@ -44,7 +44,7 @@ def render_server_status(surface, server, box_y, mouse_x, mouse_y, index):
 
 # --- 大廳畫面 ---
 def show_lobby(screen, client, handle_quit):
-    pg.display.set_caption("Game Lobby")
+    pg.display.set_caption("Whack Legends")
     lobby_running = True
 
     server_list = client.get_server_list()  # 初次取得（避免每幀都 call）
@@ -72,7 +72,7 @@ def show_lobby(screen, client, handle_quit):
                         return  # 離開 lobby，進入主遊戲畫面
 
         # === 畫面顯示 ===
-        title_surface = gs.BIG_FONT_SIZE.render("Game Lobby", True, (255, 255, 255))
+        title_surface = gs.BIG_FONT_SIZE.render("Game Lobby", True, (gs.WHITE))
         title_rect = title_surface.get_rect(center=(gs.WIDTH / 2, 80))
         screen.blit(title_surface, title_rect)
 
