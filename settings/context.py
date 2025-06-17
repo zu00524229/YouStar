@@ -2,6 +2,7 @@
 import asyncio
 # 配置
 CONTROL_SERVER_WS = "ws://127.0.0.1:8765"
+print("[context] 成功載入 context.py，CONTROL_SERVER_WS =", CONTROL_SERVER_WS)
 MY_GAME_SERVER_WS = "ws://127.0.0.1:8001/ws"
 
 # GameServer 狀態

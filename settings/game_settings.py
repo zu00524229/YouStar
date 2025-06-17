@@ -39,3 +39,15 @@ MOLE_TYPES = [
     {"name": "Diamond Mole", "color": (0, 255, 255), "score": +15},             # 特殊地鼠
     {"name": "Joker Mole", "color": (158, 79, 0), "score": 0, "score_range": (-15, 15)},   # 小丑地鼠
 ]
+
+# --- 登入畫面相關設定 ---
+LOGIN_BOX_WIDTH = 200
+LOGIN_BOX_HEIGHT = 30
+LOGIN_GAP = 15
+
+LOGIN_BUTTON_COLOR = (50, 150, 250)
+ERROR_RED = (255, 80, 80)
+LOGIN_BLUE = (180, 200, 255)
+
+# 登入框位置微調（置中偏移）
+center_x_offset = 40  # 你可以調整這個值讓框更居中

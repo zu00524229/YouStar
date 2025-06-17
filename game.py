@@ -7,15 +7,21 @@ import settings.game_settings as gs
 import UI.game_lobby as lobby
 import UI.game_play_ui as play_ui
 import UI.game_gameover_ui as gameover_ui
-
-# from settings import game_settings as gs
+import UI.login_ui as log
+import websockets
 
 # 啟動 GameClient → 負責與 ControlServer + GameServer 通訊
-client = GameClient("player1", "1234")
-client.start()
+# client = GameClient("player1", "1234")
+# client.start()
 
 # 初始化 pygame 畫面
 pg.init()
+
+# 使用 login.py 登入介面獲得 client
+client = log.login_screen()
+client.start_ws_receiver()
+# client.start()  # 記得這是正式啟動連線與 ws_receiver 的地方！
+
 
 screen = pg.display.set_mode((gs.WIDTH, gs.HEIGHT))
 pg.display.set_caption("打地鼠")
@@ -23,6 +29,14 @@ pg.display.set_caption("打地鼠")
 running = True
 clock = pg.time.Clock()
 
+
+_original_connect = websockets.connect
+
+def debug_connect(uri, *args, **kwargs):
+    print(f"[debug patch] websockets.connect 被呼叫，URI = {uri!r}")
+    return _original_connect(uri, *args, **kwargs)
+
+websockets.connect = debug_connect
 # 處理退出遊戲
 def handle_quit():
     global running
@@ -37,7 +51,6 @@ def player_count(surface, current_players):
     players_surface = gs.FONT_SIZE.render(f"Players: {current_players}", True, (255, 255, 0))
     players_rect = players_surface.get_rect(bottomright=(gs.WIDTH - 20, gs.HEIGHT - 20))  # 右下角
     surface.blit(players_surface, players_rect)
-
 
 while not client.login_success:
     print("[大廳] 等待登入完成...")

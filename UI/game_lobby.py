@@ -46,55 +46,48 @@ def render_server_status(surface, server, box_y, mouse_x, mouse_y, index):
 def show_lobby(screen, client, handle_quit):
     pg.display.set_caption("Game Lobby")
     lobby_running = True
-    server_list = client.get_server_list() # 先取得，R 才能刷新
+
+    server_list = client.get_server_list()  # 初次取得（避免每幀都 call）
 
     while lobby_running:
-        screen.fill((30, 30, 30))
+        screen.fill(gs.BLACK)
 
-        # 取得 server list
-        server_list = client.get_server_list()
+        # === 處理事件 ===
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                handle_quit()
 
-        # 畫出標題
+            elif event.type == pg.KEYDOWN:
+                if event.key == pg.K_r:  # 按 R 鍵刷新 server_list
+                    print("[Lobby] 玩家按下 R，重新取得 server list")
+                    server_list = client.get_server_list()
+
+            elif event.type == pg.MOUSEBUTTONDOWN:
+                mouse_x, mouse_y = pg.mouse.get_pos()
+                for rect, url in server_buttons:
+                    if rect.collidepoint(mouse_x, mouse_y):
+                        print(f"[Lobby] 玩家選擇連線到 GameServer: {url}")
+                        client.server_url = url
+                        client.start_ws_receiver()  # 正確啟動遊戲 WS
+                        return  # 離開 lobby，進入主遊戲畫面
+
+        # === 畫面顯示 ===
         title_surface = gs.BIG_FONT_SIZE.render("Game Lobby", True, (255, 255, 255))
-        title_rect = title_surface.get_rect(center=(gs.WIDTH/2, 80))
+        title_rect = title_surface.get_rect(center=(gs.WIDTH / 2, 80))
         screen.blit(title_surface, title_rect)
 
-        # 畫出每台 GameServer 狀態（帶框 + hover 效果）
         server_buttons = []
-        box_width = 600
-        box_height = 80
-        box_x = (gs.WIDTH - box_width) // 2
-
+        box_width, box_height = 600, 80
         mouse_x, mouse_y = pg.mouse.get_pos()
 
         for i, server in enumerate(server_list):
             box_rect = render_server_status(screen, server, 150 + i * (box_height + 20), mouse_x, mouse_y, i)
             server_buttons.append((box_rect, server["server_url"]))
 
-        # 畫提示
-        small_font_render = pg.font.SysFont(None, 28)
-        hint_surface = small_font_render.render("Click on a server to join. Press R to refresh.", True, (150, 150, 150))
-        hint_rect = hint_surface.get_rect(center=(gs.WIDTH/2, gs.HEIGHT - 50))
+        hint_surface = pg.font.SysFont(None, 28).render("Click to join. Press R to refresh.", True, (150, 150, 150))
+        hint_rect = hint_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT - 50))
         screen.blit(hint_surface, hint_rect)
 
         pg.display.flip()
+        pg.time.Clock().tick(30)
 
-        # 處理事件
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                handle_quit()
-
-            elif event.type == pg.KEYDOWN:
-                if event.key == pg.K_r:
-                    pass  # R → 重新整理 server_list
-
-            elif event.type == pg.MOUSEBUTTONDOWN:
-                mouse_x, mouse_y = pg.mouse.get_pos()
-                for box_rect, server_url in server_buttons:
-                    if box_rect.collidepoint(mouse_x, mouse_y):
-                        # 點擊進入該 server
-                        client.assigned_server = server_url
-                        print(f"[前端] 選擇連線到 GameServer: {server_url}")
-                        threading.Thread(target=lambda: asyncio.run(client.ws_receiver_async()), daemon=True).start()
-                        lobby_running = False
-                        break

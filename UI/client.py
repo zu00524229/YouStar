@@ -1,28 +1,33 @@
+# Client 前端(遊戲)
 import asyncio
 import websockets
 import json
 import threading
 import time
+import settings.context as ct
 
-CONTROL_SERVER_WS = "ws://127.0.0.1:8765"
 
 class GameClient:
     def __init__(self, username, password):
         self.username = username    # 玩家帳號名稱
         self.password = password    # 玩家密碼
-        self.assigned_server = None # 分配到的 GameServer WebSocket URL
+        # self.assigned_server = None 
+        self.server_url = None      # 分配到的 GameServer WebSocket URL
+        self.server_list = []
         self.ws_conn = None         # 當前與 GameServer 保持連線 → 用來發 hit / 收事件
-        self.loop = asyncio.get_event_loop()
+        
+        # self.loop = asyncio.get_event_loop()
         self.replay_offer_remaining_time = 0        # 剩餘倒數時間（伺服器提供
-        self.replay_offer_joined_players = 0        # 總共可參與人數（伺服器提供）
         self.replay_offer_started = False           # 是否已進入 Replay 倒數階段（避免重複點擊 Again）
         self.replay_offer_joined_players = set()    # 有點擊 Ready 的玩家名單（你可選擇顯示）
         self.replay_offer_total_players = 0
 
-        
+        self.ws_started = False
+        # self.offline_sent = False  # 防止重複通知 offline
 
         # 狀態 flag
         self.login_success = False   # 新增：是否已登入成功
+
 
         # 地鼠同步資料
         self.current_mole_id = -1
@@ -68,59 +73,6 @@ class GameClient:
                 "replay_offer_total_players": self.replay_offer_total_players,
             }
 
-
-
-    def start(self):
-        threading.Thread(target=self._start_login, daemon=True).start()
-
-    def _start_login(self):
-        asyncio.run(self.login_to_control())
-
-    async def login_to_control(self):
-        try:
-            async with websockets.connect(CONTROL_SERVER_WS) as ws:
-                await ws.send(json.dumps({
-                    "type": "login",
-                    "username": self.username,
-                    "password": self.password
-                }))
-
-                response = await ws.recv()
-                data = json.loads(response)
-
-                if data.get("type") == "login_response" and data.get("success"):
-                    print(f"[前端] 登入成功，準備取得 GameServer 列表")
-
-                    # ⭐⭐⭐ 登入成功 → 設 login_success = True ⭐⭐⭐
-                    self.login_success = True
-
-                    # call get_server_list
-                    await ws.send(json.dumps({
-                        "type": "get_server_list"
-                    }))
-
-                    response = await ws.recv()
-                    data = json.loads(response)
-
-                    if data.get("type") == "get_server_list_response":
-                        server_list = data.get("server_list", [])
-                        print(f"[前端] 取得 GameServer 列表，共 {len(server_list)} 台：")
-                        for i, server in enumerate(server_list):
-                            print(f"  [{i}] {server['server_url']} | players: {server['current_players']}/{server['max_players']} | phase: {server['game_phase']}")
-
-                else:
-                    print(f"[前端] 登入失敗: {data.get('reason')}")
-                    time.sleep(3)
-                    await self.login_to_control()
-
-        except Exception as e:
-            if "received 1000" in str(e):
-                print(f"[前端] login_to_control 正常結束 (code 1000)，不 retry")
-            else:
-                print(f"[前端] login_to_control 錯誤: {e}")
-                time.sleep(3)
-                await self.login_to_control()
-
     def get_server_list(self):
         try:
             server_list = []
@@ -131,7 +83,7 @@ class GameClient:
             return []
 
     async def _get_server_list_async(self, server_list):
-        async with websockets.connect(CONTROL_SERVER_WS) as ws:
+        async with websockets.connect(ct.CONTROL_SERVER_WS) as ws:
             await ws.send(json.dumps({
                 "type": "get_server_list"
             }))
@@ -142,9 +94,14 @@ class GameClient:
                 server_list.extend(data.get("server_list", []))
 
     async def ws_receiver_async(self):
+
+        if not self.server_url:
+            print("[前端] server_url 尚未設定，取消 WebSocket 連線")
+            return
+
         try:
             async with websockets.connect(
-                self.assigned_server,
+                self.server_url,
                 origin="http://localhost"
             ) as websocket_mole:
                 self.ws_conn = websocket_mole
@@ -156,11 +113,11 @@ class GameClient:
                     try:
                         data = json.loads(msg)
 
-                        if data.get("event") == "status_update":
-                            phase = data.get("game_phase")
-                            if phase:
-                                self.game_state = phase
-                                print(f"[前端] 狀態更新 → game_state = {self.game_state}")
+                        # if data.get("event") == "status_update":
+                        #     phase = data.get("game_phase")
+                        #     if phase:
+                        #         self.game_state = phase
+                        #         print(f"[前端] 狀態更新 → game_state = {self.game_state}")
 
                         if data.get("event") == "mole_update":
                             with self.state_lock:
@@ -183,12 +140,10 @@ class GameClient:
                         elif data.get("event") == "leaderboard_update":
                             with self.state_lock:
                                 self.leaderboard_data = data.get("leaderboard", [])
-                                self.game_state = "gameover"
-
-                        
+                                self.game_state = "gameover"                    
 
                             try:
-                                async with websockets.connect(CONTROL_SERVER_WS) as ws_offline:
+                                async with websockets.connect(ct.CONTROL_SERVER_WS) as ws_offline:
                                     await ws_offline.send(json.dumps({
                                         "type": "offline",
                                         "username": self.username
@@ -254,6 +209,31 @@ class GameClient:
 
         except Exception as e:
             print(f"[前端] WebSocket 錯誤: {e}")
+
+    def start_ws_receiver(self):
+        if self.ws_started:
+            print("[前端] ws_receiver 已啟動，略過重複啟動")
+            return
+        self.ws_started = True
+        threading.Thread(target=lambda: asyncio.run(self.ws_receiver_async()), daemon=True).start()
+
+    def quick_login_check(self):
+        try:
+            async def _check():
+                async with websockets.connect(ct.CONTROL_SERVER_WS) as ws:
+                    await ws.send(json.dumps({
+                        "type": "login",
+                        "username": self.username,
+                        "password": self.password
+                    }))
+                    response = await ws.recv()
+                    data = json.loads(response)
+                    return data.get("type") == "login_response" and data.get("success")
+
+            return asyncio.run(_check())
+        except:
+            return False
+
 
     def send_hit(self):
         try:
