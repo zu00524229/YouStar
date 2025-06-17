@@ -1,0 +1,102 @@
+run_status_loop(ws)
+while True:
+
+┌───────────────┐
+│ 是否 in playing│
+└───────────────┘
+│
+├─ 若 playing & 沒玩家 → 2秒後自動回 waiting
+│
+├─ 若 waiting 有玩家 → 切 loading phase
+│
+├─ 若 loading 倒數完 → 切 playing phase
+│
+├─ 若 playing 倒數完 → 切 gameover phase + 廣播 leaderboard
+│
+├─ 若 gameover 過2秒 → 切 post_gameover → 切回 waiting
+│
+├─ 每秒都發 status_update → ws.send → ControlServer + 玩家廣播
+│
+└─ 每秒都發 ping → ws.send({"type": "ping"})
+
+mole_sender()
+while True:
+    等 phase_changed_event.wait()
+
+    → 收到 set() → 代表進入 playing 了
+    → phase_changed_event.clear()
+
+    while game_phase == "playing":
+        - 每1~2秒發一隻地鼠 (mole_update) 廣播給所有玩家
+        - 更新 current_mole (mole_id / position / mole_type / active=True)
+        - 如果 game_phase 變了 → break loop → 回等待 phase_changed_event
+
+
+player_handler()
+玩家連線進來
+→ 收 username
+→ 加到 connected_players + player_websockets
+→ 取消 post_gameover_cooldown (可重新進新局)
+
+while True:
+    等玩家訊息 msg：
+
+    - hit:mole_id:score → 檢查是否打中 → 更新 current_scores + leaderboard → 廣播 updated mole
+    - final:username:score → 更新 leaderboard
+
+玩家斷線：
+→ 從 connected_players + player_websockets 移除
+→ 通知 ControlServer offline
+
+【GameServer 主流程】
+
+register_to_control → run_status_loop → 控制遊戲流程 → status_update → ControlServer + 玩家
+                                            ↑
+                                            │ phase_changed_event.set()
+                                            ↓
+                                    mole_sender → 發地鼠給玩家
+
+【玩家進來】
+player_handler → 收 username → 加入 connected_players
+    → 收 hit:mole_id:score → 更新 current_scores / leaderboard
+    → 收 final:username:score → 更新 leaderboard
+    → 離線 → 通知 ControlServer offline
+
+    Client 同步流程圖
+
+GameClient 啟動 → login_to_control → 中控分配 GameServer URL
+                │
+                ▼
+        ws_receiver_async 啟動 → 連 GameServer WebSocket → 傳 username
+                │
+                ▼
+         while True → 不斷收 GameServer 訊息
+                │
+                ▼
+         判斷 data.get("event") / data.get("type")
+                │
+┌────────────────────────────────────┐
+│                                    │
+│ event = "mole_update"              │
+│ → 更新地鼠資訊：                   │
+│   current_mole_id                  │
+│   current_mole_position            │
+│   current_mole_type_name           │
+│   mole_active                      │
+└────────────────────────────────────┘
+                │
+┌────────────────────────────────────┐
+│ event = "leaderboard_update"       │
+│ → 更新 leaderboard_data            │
+│ → 設 game_state = "gameover"        │
+│ → 主動通知 ControlServer offline   │
+└────────────────────────────────────┘
+                │
+┌────────────────────────────────────┐
+│ type = "status_update"              │
+│ → 更新：                            │
+│   loading_time                      │
+│   remaining_time                    │
+│   leaderboard_data                  │
+│   game_state (根據 game_phase) → 畫不同畫面│
+└────────────────────────────────────┘
