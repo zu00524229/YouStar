@@ -21,13 +21,13 @@ ready_offer_start_time = None           # 用來計算ready倒數時間
 ready_players = set()                   # 當集合人數達標，啟動下一局
 observer_players = set()                 # 用來標記這些玩家不會餐與下一輪
 
-GAME_DURATION = 30                       # 遊戲時間 60s
+GAME_DURATION = 60                       # 遊戲時間 60s
 game_start_time = None
 gameover_start_time = None
 
 
 # 當前地鼠資訊
-current_mole_id = 0
+current_mole_id = 0                     # 唯一值
 current_mole = {
     "mole_id": 0,
     "position": -1,

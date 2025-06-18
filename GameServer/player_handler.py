@@ -52,6 +52,11 @@ async def player_handler(websocket):
                     mole_id = int(parts[1])
                     player_score = int(parts[2])
 
+                    hit_time = time.time()
+                    spawn_time = ct.current_mole.get("spawn_time", 0)
+                    delay = hit_time - spawn_time
+                    print(f"[GameServer] 收到 hit:{mole_id} 時間 {hit_time:.2f}，地鼠出現於 {spawn_time:.2f}，延遲 {delay:.2f}s")
+
                     if ct.current_mole["mole_id"] == mole_id and ct.current_mole["active"]:
                         print(f"[GameServer] 玩家 {username} 打中地鼠 {mole_id}，分數 {player_score}")
                         ct.current_mole["active"] = False
@@ -72,6 +77,8 @@ async def player_handler(websocket):
                                 await ws_conn.send(json.dumps(mole_msg))
                             except:
                                 pass
+
+                        
 
                 elif msg.startswith("special_hit:"):
                     parts = msg.split(":")

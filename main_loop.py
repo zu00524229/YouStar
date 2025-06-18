@@ -89,6 +89,7 @@ def run_game_loop(screen, client):
         screen.fill(gs.BLACK)
 
         if current_game_state in ["waiting", "loading", "playing", "gameover"]:
+            # 顯示右下角該GameServer 人數
             player_count(screen, current_players)
 
         if current_game_state == "waiting":
@@ -97,23 +98,27 @@ def run_game_loop(screen, client):
             screen.blit(waiting_surface, waiting_rect)
 
         elif current_game_state == "loading":
+            # 畫Loading
             draw_loading_screen(screen, current_loading_time)
 
         elif current_game_state == "playing":
+            # 畫地鼠
             pl.draw_playing_screen(screen, state, score, leaderboard_data, current_remaining_time)
+            # 打地鼠
             pl.handle_playing_events(state, client, score, handle_quit)
 
         elif current_game_state == "gameover":
             client.ready_mode = None
             while client.ready_mode is None:
-                # ⚠ 檢查遊戲狀態，如果已不再是 gameover，就中斷畫面
+                # state = client.sync_game_state()
+                #  檢查遊戲狀態，如果已不再是 gameover，就中斷畫面
                 if client.game_state != "gameover":
                     print("[前端] 偵測到已離開 gameover 狀態，中止 gameover 畫面迴圈")
                     break
 
                 ov.draw_gameover_screen(screen, leaderboard_data, handle_quit, client, handle_quit_to_lobby)
                 pg.display.flip()
-                pg.time.wait(50)  # 降低 CPU 負擔
+                pg.time.wait(100)  # 降低 CPU 負擔
 
             if client.ready_mode == "again":
                 return "again"

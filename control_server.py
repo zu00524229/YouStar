@@ -36,51 +36,9 @@ async def handle_client(websocket):
             msg = await websocket.recv()
             data = json.loads(msg)
 
-            # GameServer 註冊流程（這台會進入自己的 loop）
-            if data.get("type") == "register_gameserver":
-                server_url = data["server_url"]
-                websocket_identity_map[websocket] = f"GameServer:{server_url}"      # 識別"誰" 從 "哪台"GameServer" 斷線
-                print(f"[Register] GameServer 註冊: {server_url}")
 
-                gameserver_status[server_url] = {
-                    "connected": True,
-                    "current_players": 0,
-                    "max_players": 3,
-                    "in_game": False,
-                    "remaining_time": 0,
-                    "leaderboard": [],
-                    "last_heartbeat": time.time(),
-                    "game_phase": "waiting"
-                }
-
-                print(f"[Register] 目前在線 GameServer 有 {len(gameserver_status)} 台:")
-                for url in gameserver_status:
-                    print(f"    - {url}")
-
-            # Heartbeat 或狀態更新
-            elif data.get("type") == "ping":
-                server_url = None
-                for url, status in gameserver_status.items():
-                    if status["connected"]:
-                        server_url = url
-                        break
-                if server_url:
-                    gameserver_status[server_url]["last_heartbeat"] = time.time()
-
-            elif data.get("type") == "update_status":
-                server_url = data.get("server_url")
-                if server_url in gameserver_status:
-                    gameserver_status[server_url].update({
-                        "current_players": data.get("current_players", 0),
-                        "leaderboard": data.get("leaderboard", []),
-                        "remaining_time": data.get("remaining_time", 0),
-                        "in_game": data.get("in_game", False),
-                        "game_phase": data.get("game_phase", "waiting"),
-                        "last_heartbeat": time.time()
-                    })
-
-            # 玩家登入
-            elif data.get("type") == "login":
+            # 玩家登入請求
+            if data.get("type") == "login":
                 username = data["username"]
                 password = data["password"]
                 user = fake_users.get(username)
@@ -106,9 +64,44 @@ async def handle_client(websocket):
                         "reason": "帳號或密碼錯誤"
                     }))
 
-            # get_server_list：這段現在才會被處理到
+            # GameServer 註冊流程（這台會進入自己的 loop）
+            elif data.get("type") == "register_gameserver":
+                server_url = data["server_url"]
+                websocket_identity_map[websocket] = f"GameServer:{server_url}"      # 識別"誰" 從 "哪台"GameServer" 斷線
+                print(f"[Register] GameServer 註冊: {server_url}")
+
+                gameserver_status[server_url] = {
+                    "connected": True,
+                    "current_players": 0,
+                    "max_players": 3,
+                    "in_game": False,
+                    "remaining_time": 0,
+                    "leaderboard": [],
+                    "last_heartbeat": time.time(),
+                    "game_phase": "waiting"
+                }
+
+                print(f"[Register] 目前在線 GameServer 有 {len(gameserver_status)} 台:")
+                for url in gameserver_status:
+                    print(f"    - {url}")
+
+            # 伺服器狀態更新
+            elif data.get("type") == "update_status":
+                server_url = data.get("server_url")
+                if server_url in gameserver_status:
+                    gameserver_status[server_url].update({
+                        "current_players": data.get("current_players", 0),
+                        "leaderboard": data.get("leaderboard", []),
+                        "remaining_time": data.get("remaining_time", 0),
+                        "in_game": data.get("in_game", False),
+                        "game_phase": data.get("game_phase", "waiting"),
+                        "last_heartbeat": time.time()
+                    })
+
+            # 玩家請求 GameServer 列表
             elif data.get("type") == "get_server_list":
-                print(f"[中控] 收到 get_server_list 請求")
+                websocket_identity_map[websocket] = "Temp:get_server_list"
+                # print(f"[中控] 收到 get_server_list 請求")
                 server_list = []
                 for server_url, status in gameserver_status.items():
                     if status["connected"]:
@@ -124,6 +117,7 @@ async def handle_client(websocket):
                     "server_list": server_list
                 }))
 
+            # 玩家離線通知
             elif data.get("type") == "offline":
                 username = data["username"]
                 if username in player_online_status:
@@ -142,6 +136,14 @@ async def handle_client(websocket):
                         "reason": "玩家不在在線狀態表中"
                     }))
 
+            # 玩家加入通知
+            elif data.get("type") == "player_joined":
+                username = data["username"]
+                server_url = data["server_url"]
+                player_online_status[username] = server_url
+                print(f"[Player Join] 玩家 {username} 加入 → {server_url}")
+
+            # 排行榜請求
             elif data.get("type") == "get_leaderboard":
                 gameserver_url = data["gameserver_url"]
                 if gameserver_url in gameserver_status:
@@ -155,20 +157,22 @@ async def handle_client(websocket):
                         "type": "get_leaderboard_response",
                         "error": "GameServer 未找到"
                     }))
-
-            elif data.get("type") == "player_joined":
-                username = data["username"]
-                server_url = data["server_url"]
-                player_online_status[username] = server_url
-                print(f"[Player Join] 玩家 {username} 加入 → {server_url}")
+            
+            # Heartbeat 或狀態更新
+            elif data.get("type") == "ping":
+                server_url = None
+                for url, status in gameserver_status.items():
+                    if status["connected"]:
+                        server_url = url
+                        break
+                if server_url:
+                    gameserver_status[server_url]["last_heartbeat"] = time.time()
 
 
     except websockets.exceptions.ConnectionClosed:
         identity = websocket_identity_map.pop(websocket, None)
-        if identity:
+        if identity and not identity.startswith("Temp:get_server_list"):
             print(f"[Disconnect] {identity} 斷線")
-        else:
-            print(f"[Disconnect] 匿名 client 斷線（可能是 login/get_server_list 臨時連線）")
 
 # 啟動 WebSocket Server + heartbeat_checker
 async def main():

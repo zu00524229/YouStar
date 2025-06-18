@@ -27,8 +27,10 @@ async def mole_sender():
                     "mole_id": ct.current_mole_id,
                     "position": random.randint(0, 11),
                     "mole_type": random.choice(["Mole", "Gold Mole", "Bomb Mole", "Joker Mole"]),                    
-                    "active": True
+                    "active": True,
+                    "spawn_time": time.time()
                 }
+                print(f"[GameServer] 發送地鼠 {ct.current_mole['mole_id']} at {ct.current_mole['spawn_time']}")
 
                 await broadcast({
                     "event": "mole_update",
@@ -36,13 +38,19 @@ async def mole_sender():
                 })
 
 
-                sleep_time = random.uniform(0.6, 1.5)
-                start_sleep = time.time()
-                while time.time() - start_sleep < sleep_time:
-                    if ct.game_phase != "playing":
-                        print("[GameServer] mole_sender 偵測到離開 playing, break inner loop")
-                        break
-                    await asyncio.sleep(0.05)
+                sleep_time = random.uniform(1.2, 2.0)
+
+                # start_sleep = time.time()
+                # while time.time() - start_sleep < sleep_time:
+                #     if ct.game_phase != "playing":
+                #         print("[GameServer] mole_sender 偵測到離開 playing, break inner loop")
+                #         break
+                #     await asyncio.sleep(0.05)
+                await asyncio.sleep(sleep_time)
+
+                ct.current_mole["spawn_time"] = time.time()
+                
+
 
 # 特殊地鼠
 async def special_mole_sender():

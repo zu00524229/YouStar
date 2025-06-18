@@ -80,6 +80,7 @@ def handle_playing_events(state, client, score, handle_quit):
     current_mole_type_name = state["current_mole_type_name"]
     current_special_mole_type_name = state["current_special_mole_type_name"]
 
+
     for event in pg.event.get():
         if event.type == pg.QUIT:
             handle_quit()  # 回遊戲大廳

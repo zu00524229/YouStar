@@ -1,11 +1,19 @@
 # broadcaster.py    :   給GameServer 玩家廣播  訊息
+import asyncio
 import json
 import settings.context as ct
 
 async def broadcast(message_dict):
     msg = json.dumps(message_dict)
-    for player, ws_conn in ct.player_websockets.items():
-        try:
-            await ws_conn.send(msg)
-        except:
-            print(f"[GameServer] 傳送給玩家 {player} 失敗")
+    tasks = []
+    for player, ws in ct.player_websockets.items():
+        tasks.append(_safe_send(player, ws, msg))
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+async def _safe_send(player, ws_conn, msg):
+    try:
+        await ws_conn.send(msg)
+    except Exception as e:
+        print(f"[Broadcast] 傳送給 {player} 失敗：{e}")
+        # 可選：從連線池中移除壞掉的連線
+        # ct.player_websockets.pop(player, None)

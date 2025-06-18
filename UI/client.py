@@ -126,10 +126,10 @@ class GameClient:
                             with self.state_lock:
                                 if self.game_state == "playing":
                                     mole = data["mole"]
-                                    self.current_mole_id = mole["mole_id"]
-                                    self.current_mole_position = mole["position"]
-                                    self.current_mole_type_name = mole["mole_type"]
-                                    self.mole_active = mole["active"]
+                                    self.current_mole_id = mole["mole_id"]              # 記下當前地鼠ID
+                                    self.current_mole_position = mole["position"]       # 地鼠位置
+                                    self.current_mole_type_name = mole["mole_type"]     # 地鼠類型名稱
+                                    self.mole_active = mole["active"]                   # 是否有效             
 
                         elif data.get("event") == "special_mole_update":
                             with self.state_lock:
@@ -253,6 +253,7 @@ class GameClient:
         try:
             asyncio.run(self.ws_conn.send(f"hit:{self.current_mole_id}:{self.score}"))
             print(f"[前端] 發送 hit:{self.current_mole_id}:{self.score} 給 GameServer")
+            print(f"[Debug] 傳送 hit 時間：{time.time():.2f}")
         except:
             pass
 
@@ -260,6 +261,7 @@ class GameClient:
         try:
             asyncio.run(self.ws_conn.send(f"special_hit:{self.current_special_mole_id}:{self.score}"))
             print(f"[前端] 發送 special_hit:{self.current_special_mole_id}:{self.score} 給 GameServer")
+            print(f"[Debug] 傳送 hit 時間：{time.time():.2f}")
         except:
             pass
 

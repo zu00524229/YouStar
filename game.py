@@ -67,6 +67,7 @@ while running:
     # === 顯示大廳 ===
     result = "lobby"
 
+    # 遊戲大廳
     while result == "lobby":
         result = lob.show_lobby(screen, client, loop.handle_quit)
 
@@ -74,18 +75,21 @@ while running:
         result = loop.run_game_loop(screen, client)
         client.ready_mode = "none"
 
+    # 邀請再來一局
     elif result == "again":
         continue  # 直接下一輪
 
+    # 觀戰者模式 (還沒寫)
     elif result == "watch":
         loop.run_watch_mode(screen, client)
 
-    elif result == "lobby":
-        # 重新登入流程
-        client = log.login_screen(screen)
-        print("[Debug] login_screen 已完成並返回 client")
-        client.start_ws_receiver()
-        continue
+    # elif result == "lobby":
+    #     # 重新登入流程
+    #     client = log.login_screen(screen)
+    #     print("[Debug] login_screen 已完成並返回 client")
+    #     client.start_ws_receiver()
+    #     continue
+    
     elif result == "quit":
         break
 
