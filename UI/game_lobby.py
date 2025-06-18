@@ -14,7 +14,7 @@ def render_server_status(surface, server, box_y, mouse_x, mouse_y, index):
 
     # 判斷是否 hover
     is_hover = box_rect.collidepoint(mouse_x, mouse_y)
-    box_color = (100, 100, 100) if is_hover else (60, 60, 60)
+    box_color = (gs.HOVAR) if is_hover else (60, 60, 60)
 
     # 畫方框
     pg.draw.rect(surface, box_color, box_rect)
@@ -47,9 +47,9 @@ def show_lobby(screen, client, handle_quit):
     pg.display.set_caption("Whack Legends")
     lobby_running = True
 
-    server_list = client.get_server_list()  # 初次取得（避免每幀都 call）
 
     while lobby_running:
+        server_list = client.get_server_list()  # 初次取得（避免每幀都 call）
         screen.fill(gs.BLACK)
 
         # === 處理事件 ===
@@ -68,8 +68,10 @@ def show_lobby(screen, client, handle_quit):
                     if rect.collidepoint(mouse_x, mouse_y):
                         print(f"[Lobby] 玩家選擇連線到 GameServer: {url}")
                         client.server_url = url
-                        client.start_ws_receiver()  # 正確啟動遊戲 WS
-                        return  # 離開 lobby，進入主遊戲畫面
+                        client.start_ws_receiver()
+                        client.sync_game_state()    # 強制同步最新狀態，避免停留在舊的gameserver
+                        return "play"               # 明確回傳 play
+
 
         # === 畫面顯示 ===
         title_surface = gs.BIG_FONT_SIZE.render("Game Lobby", True, (gs.WHITE))

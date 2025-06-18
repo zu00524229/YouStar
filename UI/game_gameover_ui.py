@@ -39,7 +39,7 @@ def draw_gameover_screen(screen, leaderboard_data, handle_quit, client, handle_q
         is_hover_ready = ready_rect.collidepoint(mouse_x, mouse_y)
 
         # 文字變色（亮白 or 藍白）
-        text_color = (100, 200, 255) if is_hover_ready else (gs.WHITE)
+        text_color = (gs.HOVAR) if is_hover_ready else (gs.WHITE)
         ready_surface = gs.FONT_SIZE.render("Again?", True, text_color)
         screen.blit(ready_surface, ready_rect)
 
@@ -48,24 +48,24 @@ def draw_gameover_screen(screen, leaderboard_data, handle_quit, client, handle_q
     exit_rect = exit_surface.get_rect(center=(gs.WIDTH / 2 - 100, gs.HEIGHT / 2 + 200))
     is_hover_exit = exit_rect.collidepoint(mouse_x, mouse_y)
 
-    text_color_exit = (255, 100, 100) if is_hover_exit else (gs.WHITE)
+    text_color_exit = (gs.HOVAR) if is_hover_exit else (gs.WHITE)
     exit_surface = gs.FONT_SIZE.render("lobby", True, text_color_exit)
     screen.blit(exit_surface, exit_rect)
 
-    # 處理ready事件
+    # 處理事件
     for event in pg.event.get():
         if event.type == pg.QUIT:
             handle_quit()
 
         elif event.type == pg.MOUSEBUTTONDOWN:
-            if again_rect.collidepoint(mouse_x, mouse_y):
+            if ready_rect and ready_rect.collidepoint(mouse_x, mouse_y):
                 client.ready_mode = "again"
-                return  # 直接結束畫面，由主程式處理
-
-            elif watch_rect.collidepoint(mouse_x, mouse_y):
-                client.ready_mode = "watch"
                 return
 
-            elif lobby_rect.collidepoint(mouse_x, mouse_y):
+            elif exit_rect.collidepoint(mouse_x, mouse_y):
+                client.ready_mode = "lobby"
                 handle_quit_to_lobby(screen, client)
+
+            
+
 

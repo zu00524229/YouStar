@@ -11,6 +11,7 @@ def run_watch_mode(screen, client):
     print("[前端] 進入觀戰模式，目前暫不支援。")
     return
 
+# loading (等待與加入)
 def draw_loading_screen(screen, current_loading_time):
     loading_surface = gs.FONT_SIZE.render(f"Loading..{current_loading_time} s", True, gs.WHITE)
     loading_rect = loading_surface.get_rect(center = (gs.WIDTH / 2, gs.HEIGHT / 2))
@@ -52,10 +53,25 @@ def player_count(surface, current_players):
     players_rect = players_surface.get_rect(bottomright=(gs.WIDTH - 20, gs.HEIGHT - 20))  # 右下角
     surface.blit(players_surface, players_rect)
 
+# 等待GameServer 狀態刷新
+def wait_until_state_not_gameover(client, delay_ms = 100):
+    while True:
+        state = client.sync_game_state()
+        if state["game_state"] != "gameover":
+            break
+        print("[debug] 初始狀態為 gameover，等待狀態刷新...")
+        pg.time.wait(delay_ms)
+
+
 def run_game_loop(screen, client):
-    running = True
+
     clock = pg.time.Clock()
 
+    # === 避免直接進入 gameover 的保護邏輯 ===
+    wait_until_state_not_gameover(client)  # 等狀態進入下一局
+
+    # === 主迴圈 ===
+    running = True
     while running:
         events = pg.event.get()
         for event in events:
@@ -88,12 +104,23 @@ def run_game_loop(screen, client):
             pl.handle_playing_events(state, client, score, handle_quit)
 
         elif current_game_state == "gameover":
-            ov.draw_gameover_screen(screen, leaderboard_data, handle_quit, client, handle_quit_to_lobby)
+            client.ready_mode = None
+            while client.ready_mode is None:
+                # ⚠ 檢查遊戲狀態，如果已不再是 gameover，就中斷畫面
+                if client.game_state != "gameover":
+                    print("[前端] 偵測到已離開 gameover 狀態，中止 gameover 畫面迴圈")
+                    break
+
+                ov.draw_gameover_screen(screen, leaderboard_data, handle_quit, client, handle_quit_to_lobby)
+                pg.display.flip()
+                pg.time.wait(50)  # 降低 CPU 負擔
 
             if client.ready_mode == "again":
                 return "again"
             elif client.ready_mode == "watch":
                 return "watch"
+            elif client.ready_mode == "lobby":
+                return "lobby"
         
         else:
             print(f"[警告] 未知的 game_state: {current_game_state}")

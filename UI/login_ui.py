@@ -8,10 +8,7 @@ import websockets
 import settings.game_settings as gs
 import settings.context as ct
 
-pg.init()
-
-screen = pg.display.set_mode((gs.WIDTH, gs.HEIGHT))
-pg.display.set_caption("Whack Legends")
+# pg.init()
 
 # FONT = gs.FONT_SIZE
 WHITE, BLACK, BLUE = gs.WHITE, gs.BLACK, gs.LOGIN_BLUE
@@ -33,11 +30,13 @@ login_button = pg.Rect(center_x, center_y + 2 * (box_height + gap), box_width, b
 
 clock = pg.time.Clock()
 
-def login_screen():
+def login_screen(screen):
+    clock = pg.time.Clock()
     user_text, pass_text = '', ''
     active_user, active_pass = True, False
     message = ''
     running = True
+    clicked_login = False
 
     while running:
         screen.fill(gs.BLACK)
@@ -49,6 +48,7 @@ def login_screen():
         title_rect = title_surface.get_rect(center=(gs.WIDTH // 2, 130))
         screen.blit(title_surface, title_rect)
 
+        # === 事件處理 ===
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 pg.quit()
@@ -60,47 +60,37 @@ def login_screen():
 
                 if login_button.collidepoint(event.pos):
                     clicked_login = True
-                else:
-                    clicked_login = False
 
             elif event.type == pg.KEYDOWN:
                 if event.key == pg.K_TAB:
                     active_user, active_pass = not active_user, not active_pass
-                    clicked_login = False
 
                 elif event.key == pg.K_RETURN:
                     clicked_login = True
                 else:
-                    clicked_login = False
-
                     if active_user:
-                        if event.key == pg.K_BACKSPACE:
-                            user_text = user_text[:-1]
-                        else:
-                            user_text += event.unicode
+                        user_text = user_text[:-1] if event.key == pg.K_BACKSPACE else user_text + event.unicode
                     elif active_pass:
-                        if event.key == pg.K_BACKSPACE:
-                            pass_text = pass_text[:-1]
-                        else:
-                            pass_text += event.unicode
-            else:
-                clicked_login = False
+                        pass_text = pass_text[:-1] if event.key == pg.K_BACKSPACE else pass_text + event.unicode
 
-            # === 登入流程整合處理 ===
-            if clicked_login:
-                clicked_login = False
-                client = login_to_control(user_text, pass_text)
-                if client and client.server_list:
-                    print(f"[Debug] 登入後的 client.server_list 有幾台: {len(client.server_list)}")
-                    # client.assigned_server = client.server_list[0]["server_url"]
-                    client.server_url = client.server_list[0]["server_url"]
-                    client.start_ws_receiver()
-                    return client
-                elif client:
-                    print("[錯誤] 無可用 GameServer")
-                    message = "No available game server. Please try again later."
-                else:
-                    message = "Login failed. Please check your username or password."
+        # === 登入流程整合處理 ===
+        if clicked_login:
+            clicked_login = False
+            print("[Debug] clicked_login == True，開始送出登入")
+            client = login_to_control(user_text, pass_text)
+            if client and client.server_list:
+                running = False
+                print(f"[Debug] 登入後的 client.server_list 有幾台: {len(client.server_list)}")
+                # client.assigned_server = client.server_list[0]["server_url"]
+                client.server_url = client.server_list[0]["server_url"]
+                client.start_ws_receiver()
+                print("[Debug] login_screen return 觸發，準備跳出登入畫面")
+                return client
+            elif client:
+                print("[錯誤] 無可用 GameServer")
+                message = "No available game server. Please try again later."
+            else:
+                message = "Login failed. Please check your username or password."
 
         # 計算提示字寬度，用來做右對齊
         label_user_text = "Username:"
@@ -121,7 +111,7 @@ def login_screen():
         screen.blit(label_pass, (label_pass_x, input_box_pass.y + 10))
 
         hover_login = login_button.collidepoint(mouse_pos)
-        btn_color = (30, 130, 230) if hover_login else gs.LOGIN_BUTTON_COLOR
+        btn_color = (gs.HOVAR) if hover_login else gs.LOGIN_BUTTON_COLOR
         pg.draw.rect(screen, btn_color, login_button)
 
         # 輸入框與文字
