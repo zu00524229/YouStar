@@ -44,6 +44,8 @@ class GameClient:
         self.current_special_mole_type_name = ""
         self.special_mole_active = False
 
+        self.async_loop = asyncio.get_event_loop()
+
         # 遊戲整體狀態
         self.game_state = "waiting"
         self.remaining_time = 10
@@ -123,6 +125,7 @@ class GameClient:
                         #         print(f"[前端] 狀態更新 → game_state = {self.game_state}")
 
                         if data.get("event") == "mole_update":
+                            print(f"[前端] 收到地鼠：{data['mole']}")
                             with self.state_lock:
                                 if self.game_state == "playing":
                                     mole = data["mole"]
@@ -132,6 +135,7 @@ class GameClient:
                                     self.mole_active = mole["active"]                   # 是否有效             
 
                         elif data.get("event") == "special_mole_update":
+                            print(f"[前端] 收到特殊地鼠：{data['mole']}")
                             with self.state_lock:
                                 if self.game_state == "playing":
                                     mole = data["mole"]
@@ -143,15 +147,14 @@ class GameClient:
                         elif data.get("event") == "leaderboard_update":
                             with self.state_lock:
                                 self.leaderboard_data = data.get("leaderboard", [])
-                                self.game_state = "gameover"                    
-
+                                                
                             try:
                                 async with websockets.connect(ct.CONTROL_SERVER_WS) as ws_offline:
                                     await ws_offline.send(json.dumps({
                                         "type": "offline",
                                         "username": self.username
                                     }))
-                                    print(f"[前端] 已主動通知 ControlServer 玩家 {self.username} offline (排行榜出現)")
+                                    # print(f"[前端] 已主動通知 ControlServer 玩家 {self.username} offline (排行榜出現)")
                             except Exception as e:
                                 print(f"[前端] 通知 ControlServer 玩家 {self.username} offline 失敗: {e}")
 
@@ -220,7 +223,14 @@ class GameClient:
         self.ws_started = True
         ct.ws_receiver_start_count += 1                 # 檢查連線
         print(f"[Debug] 第 {ct.ws_receiver_start_count} 次啟動 ws_receiver")
-        threading.Thread(target=lambda: asyncio.run(self.ws_receiver_async()), daemon=True).start()
+        # 用新的 loop 並保存下來
+        self.async_loop = asyncio.new_event_loop()
+        threading.Thread(target=self._run_ws_loop, daemon=True).start()
+
+    def _run_ws_loop(self):
+        asyncio.set_event_loop(self.async_loop)
+        self.async_loop.run_until_complete(self.ws_receiver_async())
+
 
     # 檢查  GameServer
     async def connect_to_gameserver(self, server_url):
@@ -250,22 +260,22 @@ class GameClient:
         except:
             return False
 
-
-    def send_hit(self):
+    async def send_hit_async(self):
         try:
-            asyncio.run(self.ws_conn.send(f"hit:{self.current_mole_id}:{self.score}"))
+            await self.ws_conn.send(f"hit:{self.current_mole_id}:{self.score}")
             print(f"[前端] 發送 hit:{self.current_mole_id}:{self.score} 給 GameServer")
             print(f"[Debug] 傳送 hit 時間：{time.time():.2f}")
-        except:
-            pass
+        except Exception as e:
+            print(f"[前端] 發送 hit 時錯誤: {e}")
 
-    def send_special_hit(self):
+
+    async def send_special_hit_async(self):
         try:
-            asyncio.run(self.ws_conn.send(f"special_hit:{self.current_special_mole_id}:{self.score}"))
+            await self.ws_conn.send(f"special_hit:{self.current_special_mole_id}:{self.score}")
             print(f"[前端] 發送 special_hit:{self.current_special_mole_id}:{self.score} 給 GameServer")
             print(f"[Debug] 傳送 hit 時間：{time.time():.2f}")
-        except:
-            pass
+        except Exception as e:
+            print(f"[前端] 發送 special_hit 時錯誤: {e}")
 
     # 遊戲前端ready按鈕
     def send_ready(self):

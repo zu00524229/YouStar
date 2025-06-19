@@ -3,6 +3,7 @@ import json
 import time
 import asyncio
 import websockets
+import GameServer.broadcaster as bc
 import settings.context as ct
 
 # 通知 ControlServer：玩家加入
@@ -77,7 +78,9 @@ async def player_handler(websocket):
                                 await ws_conn.send(json.dumps(mole_msg))
                             except:
                                 pass
-
+                     
+                        await bc.broadcast_leaderboard()
+                        print("[Debug] 廣播 leaderboard 中:", ct.current_scores)
                         
 
                 elif msg.startswith("special_hit:"):
@@ -122,7 +125,7 @@ async def player_handler(websocket):
                 elif msg == "ready":
                     print(f"[GameServer] 收到 ready，進入 ready Offer 階段")
                     ct.ready_offer_active = True
-                    ct.ready_offer_start_time = time.time()
+                    ct.loading_start_time = time.time()
                     ct.ready_players = {username}
 
                 elif msg == "join_ready":

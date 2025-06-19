@@ -39,16 +39,8 @@ async def mole_sender():
 
 
                 sleep_time = random.uniform(1.2, 2.0)
-
-                # start_sleep = time.time()
-                # while time.time() - start_sleep < sleep_time:
-                #     if ct.game_phase != "playing":
-                #         print("[GameServer] mole_sender 偵測到離開 playing, break inner loop")
-                #         break
-                #     await asyncio.sleep(0.05)
                 await asyncio.sleep(sleep_time)
 
-                ct.current_mole["spawn_time"] = time.time()
                 
 
 
@@ -60,7 +52,7 @@ async def special_mole_sender():
 
         if ct.game_phase != "playing":
             # 若不是 playing，則清掉事件並重新等待，不做任何事
-            ct.phasr_changed_event.clear()
+            ct.phase_changed_event.clear()
             continue
 
         print("[GameServer] special_mole_sender 進入 playing loop!")
@@ -92,8 +84,6 @@ async def special_mole_sender():
                 "event": "special_mole_update",
                 "mole": ct.current_special_mole
             })
-
-
 
             print(f"[GameServer] 發送 Special Mole ID {ct.current_special_mole_id} at pos {ct.current_special_mole['position']}")
 

@@ -21,8 +21,6 @@ loading_time = 10                        # loading 倒數秒數
 loading_start_time = None          
 
 ready_offer_active = False              # 檢查 是否正在提供 ready 選項給玩家
-ready_offer_start_time = None           # 用來計算ready倒數時間
-# ready_offer_duration = 10             # 提供ready時間
 ready_players = set()                   # 當集合人數達標，啟動下一局
 observer_players = set()                 # 用來標記這些玩家不會餐與下一輪
 

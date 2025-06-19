@@ -102,7 +102,7 @@ def run_game_loop(screen, client):
 
         elif current_game_state == "playing":
             # 畫地鼠
-            pl.draw_playing_screen(screen, state, score, leaderboard_data, current_remaining_time)
+            pl.draw_playing_screen(screen, state, client)
             # 打地鼠
             pl.handle_playing_events(state, client, score, handle_quit)
 

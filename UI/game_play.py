@@ -4,6 +4,7 @@
 import pygame as pg
 import settings.game_settings as gs
 import random
+import asyncio
 
 # 玩家時間
 def draw_time(screen, remaining_time):
@@ -99,7 +100,8 @@ def handle_playing_events(state, client, score, handle_quit):
 
                     with client.state_lock:
                         client.score = score
-                    client.send_hit()
+                        # client.send_hit()
+                    asyncio.run_coroutine_threadsafe(client.send_hit_async(), client.async_loop)
 
                     state["mole_active"] = False
 
@@ -118,7 +120,8 @@ def handle_playing_events(state, client, score, handle_quit):
 
                         with client.state_lock:
                             client.score = score
-                        client.send_special_hit()
+                        # client.send_special_hit()
+                        asyncio.run_coroutine_threadsafe(client.send_special_hit_async(), client.async_loop)
 
                         with client.state_lock:
                             client.special_mole_active = False
@@ -126,14 +129,14 @@ def handle_playing_events(state, client, score, handle_quit):
                         popup_text = f"+{special_score} {current_special_mole_type_name}"
                         gs.score_popups.append({"text": popup_text, "y_pos": gs.HEIGHT - 100, "alpha": 255})
 
-def draw_playing_screen(screen, state, score, leaderboard_data, remaining_time):
-    draw_score(screen, score)                           # 分數顯示
+def draw_playing_screen(screen, state, client):
+    draw_score(screen, client.score)                           # 分數顯示
     draw_time(screen, state["remaining_time"])          # 倒數時間顯示
-    draw_live_leaderboard(screen, leaderboard_data)     # 即時排行榜
+    draw_live_leaderboard(screen, client.leaderboard_data)     # 即時排行榜
     draw_moles(screen, state)                           # 普通/特殊地鼠顯示
     draw_score_popups(screen)                           # 擊中地鼠的分數彈出動畫
     
-    # ➕ 顯示倒數時間（右上角）
-    time_surface = gs.FONT_SIZE.render(f"Time: {remaining_time}s", True, gs.WHITE)
-    screen.blit(time_surface, (350, 20))  # 可以根據你畫面佈局微調位置
+    # # ➕ 顯示倒數時間（右上角）
+    # time_surface = gs.FONT_SIZE.render(f"Time: {remaining_time}s", True, gs.WHITE)
+    # screen.blit(time_surface, (350, 20))  # 可以根據你畫面佈局微調位置
 

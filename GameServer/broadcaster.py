@@ -17,3 +17,13 @@ async def _safe_send(player, ws_conn, msg):
         print(f"[Broadcast] 傳送給 {player} 失敗：{e}")
         # 可選：從連線池中移除壞掉的連線
         # ct.player_websockets.pop(player, None)
+
+# 排行榜廣播
+async def broadcast_leaderboard():
+    await broadcast({
+        "event": "leaderboard_update",
+        "leaderboard": [
+            {"username": user, "score": score}
+            for user, score in ct.current_scores.items()
+        ]
+    })

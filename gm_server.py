@@ -70,10 +70,10 @@ async def run_status_loop(ws):
         
             # --- waiting -- 遊戲待機階段
             if ct.game_phase == "waiting" and ct.ready_offer_active:
-                if ct.ready_offer_start_time is not None:
+                if ct.loading_start_time is not None:
                     await wait.handle_ready_offer(now)
                 else:
-                    print("[GameServer] ready_offer_start_time 是 None，略過 handle_ready_offer")
+                    print("[GameServer] loading_start_time 是 None，略過 handle_ready_offer")
             
             if ct.game_phase == "playing" and ct.game_start_time is not None:
                 remaining_game_time = max(0, ct.GAME_DURATION - int(now - ct.game_start_time))
