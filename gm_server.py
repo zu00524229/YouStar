@@ -47,17 +47,17 @@ async def run_status_loop(ws):
         while True:
             now = time.time()
 
-            # --- playing -- 管理玩家離線與結束倒數
-            if ct.game_phase == "playing":
-                await play.handle_playing_phase()
-                
             # --- waiting -- 玩家進入遊戲、觸發進入 loading 階段
-            if ct.game_phase == "waiting" and not ct.post_gameover_cooldown:
-                wait.check_start_waiting(now)
+            if ct.game_phase == "waiting":
+                await wait.check_start_waiting(now)
 
             # --- loading -- 倒數完轉為 playing
             if ct.game_phase == "loading":
                 await load.handle_loading_phase()
+
+            # --- playing -- 管理玩家離線與結束倒數
+            if ct.game_phase == "playing":
+                await play.handle_playing_phase()
 
             # --- gameover -- 倒數完轉換(等待玩家是否下局或觀戰)
             if ct.game_phase == "gameover":
@@ -75,15 +75,16 @@ async def run_status_loop(ws):
                 else:
                     print("[GameServer] loading_start_time 是 None，略過 handle_ready_offer")
             
+            if ct.game_phase == "loading" and ct.loading_start_time is not None:
+                loading_time_left = max(0, math.ceil(10 - (now - ct.loading_start_time)))
+            else:
+                loading_time_left = 0
+
             if ct.game_phase == "playing" and ct.game_start_time is not None:
                 remaining_game_time = max(0, ct.GAME_DURATION - int(now - ct.game_start_time))
             else:
                 remaining_game_time = 0
 
-            if ct.game_phase == "loading" and ct.loading_start_time is not None:
-                loading_time_left = max(0, math.ceil(10 - (now - ct.loading_start_time)))
-            else:
-                loading_time_left = 0
 
             leaderboard_list = []
             for username in ct.connected_players:
@@ -93,8 +94,9 @@ async def run_status_loop(ws):
                     "score": score
                 })
 
+            # 給中控
             status_update = {
-                "type": "status_update",
+                "type": "update_status",
                 "current_players": len(ct.connected_players),
                 "in_game": len(ct.connected_players) > 0,
                 "remaining_time": remaining_game_time,
@@ -102,7 +104,7 @@ async def run_status_loop(ws):
                 "game_phase": ct.game_phase,
                 "loading_time": loading_time_left
             }
-
+            # print("[GameServer] 已送出 update_status 給中控：", status_update)
             await ws.send(json.dumps(status_update))
 
             for player, ws_conn in ct.player_websockets.items():

@@ -22,13 +22,15 @@ async def mole_sender():
 
             while ct.game_phase == "playing":
                 # 生成新地鼠
+                ct.current_mole["active"] = False  # 舊的先關掉
                 ct.current_mole_id += 1
                 ct.current_mole = {
                     "mole_id": ct.current_mole_id,
                     "position": random.randint(0, 11),
                     "mole_type": random.choice(["Mole", "Gold Mole", "Bomb Mole", "Joker Mole"]),                    
                     "active": True,
-                    "spawn_time": time.time()
+                    "spawn_time": time.time(),
+                    "duration": 1.8   # 秒
                 }
                 print(f"[GameServer] 發送地鼠 {ct.current_mole['mole_id']} at {ct.current_mole['spawn_time']}")
 
@@ -62,7 +64,8 @@ async def special_mole_sender():
 
             if ct.game_phase != "playing":
                 break
-
+            
+            ct.current_special_mole["active"] = False  # 舊的先關掉
             ct.current_special_mole_id += 1
 
             all_positions = set(range(12))

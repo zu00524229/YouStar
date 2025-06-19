@@ -1,10 +1,11 @@
-# game_mainloop.py  遊戲主循環 與 loading
+# game_mainloop.py  管理game.py遊戲主循環 與 loading
 import pygame as pg
 import asyncio
 import UI.game_play as pl
 import UI.game_gameover_ui as ov
 import UI.game_waiting as wait
 import settings.game_settings as gs
+from UI.client import GameClient
 
 # 觀戰模式(未製作)
 def run_watch_mode(screen, client):
@@ -64,7 +65,7 @@ def wait_until_state_not_gameover(client, delay_ms = 100):
         pg.time.wait(delay_ms)
 
 
-def run_game_loop(screen, client):
+def run_game_loop(screen, client: GameClient):
 
     clock = pg.time.Clock()
 
@@ -80,12 +81,22 @@ def run_game_loop(screen, client):
                 handle_quit()
 
         state = client.sync_game_state()
-        current_game_state = state["game_state"]
-        current_players = state["current_players"]
-        current_remaining_time = state["remaining_time"]
-        current_loading_time = state["loading_time"]
-        leaderboard_data = state["leaderboard_data"]
-        score = state["score"]
+        # print(f"[MainLoop] 當前 game_state: {state.get('game_state')}")
+
+        client.game_state = state.get("game_state", "unknown")
+        client.remaining_time = state.get("remaining_time", 0)
+        client.loading_time = state.get("loading_time", 0)
+        client.current_players = state.get("current_players", 0)
+        client.leaderboard_data = state.get("leaderboard_data", [])
+        client.score = state.get("score", 0)
+
+        # 再來用這些變數畫畫面
+        current_game_state = client.game_state
+        current_remaining_time = client.remaining_time
+        current_loading_time = client.loading_time
+        current_players = client.current_players
+        leaderboard_data = client.leaderboard_data
+        score = client.score
 
         screen.fill(gs.BLACK)
 
@@ -94,13 +105,16 @@ def run_game_loop(screen, client):
             player_count(screen, current_players)
 
         if current_game_state == "waiting":
+            # print("[MainLoop] 進入畫面：waiting")
             wait.draw_waiting_screen(screen, events, client)
 
         elif current_game_state == "loading":
+            # print("[MainLoop] 進入畫面：loading")
             # 畫Loading
             draw_loading_screen(screen, current_loading_time)
-
+        
         elif current_game_state == "playing":
+            # print("[MainLoop] 進入畫面：playing")
             # 畫地鼠
             pl.draw_playing_screen(screen, state, client)
             # 打地鼠
