@@ -4,6 +4,13 @@ import settings.context as ct
 import GameServer.broadcaster as bc
 # import time
 
+def check_start_waiting(now):
+    print(f"[Debug] 目前 ready_players: {ct.ready_players}")
+    if len(ct.ready_players) > 0 and ct.game_phase == "waiting" and not ct.post_gameover_cooldown:
+        ct.game_phase = "loading"
+        ct.loading_start_time = now
+        print(f"[GameServer] {len(ct.ready_players)} 名玩家按下 Ready，開始 loading 倒數 10 秒")
+
 # 遊戲待機
 async def handle_ready_offer(now):
     if ct.ready_offer_start_time is None:

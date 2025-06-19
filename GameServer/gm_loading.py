@@ -4,12 +4,6 @@ import time
 import math
 import settings.context as ct
 
-# loading 啟動邏輯 waiting 轉為 loading 邏輯
-def check_start_loading(now):
-    if len(ct.connected_players) > 0 and ct.game_phase == "waiting" and not ct.post_gameover_cooldown:
-        ct.game_phase = "loading"
-        ct.loading_start_time = now
-        print("[GameServer] 玩家已進入，開始 loading 倒數 10 秒")
 
 # 處理 loading 邏輯
 async def handle_loading_phase():

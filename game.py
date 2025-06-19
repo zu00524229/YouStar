@@ -32,8 +32,6 @@ pg.display.set_caption("Whack Legends")
 show_start_screen(screen)
 # === login ===
 client = log.login_screen(screen)
-client.start_ws_receiver()
-print("[Debug] login_screen 已完成並返回 client")
 
 # 過渡畫面
 while not client.login_success:

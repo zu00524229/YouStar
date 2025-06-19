@@ -2,19 +2,27 @@
 import pygame as pg
 
 pg.init()
+
+
+
 # 顏色
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+GREEN = (0, 200, 0)
 HOVAR = (158, 79, 0)
 
 # 視窗設定
 WIDTH = 840
 HEIGHT = 640
 
+# 字型
+CH_FONT_PATH = "assets/fonts/NotoSansTC-VariableFont_wght.ttf"
+CH_FONT_SIZE = pg.font.Font(CH_FONT_PATH, 28)
+
 # 字型大小
 
-SMALL_FONT_SIZE = pg.font.SysFont(None, 36)
 FONT_SIZE = pg.font.SysFont(None, 48)
+SMALL_FONT_SIZE = pg.font.SysFont(None, 28)
 BIG_FONT_SIZE = pg.font.SysFont(None, 96)
 RANK_FONT_SIZE = pg.font.SysFont(None, 24)
 
@@ -52,3 +60,6 @@ LOGIN_BLUE = (180, 200, 255)
 
 # 登入框位置微調（置中偏移）
 center_x_offset = 40  # 你可以調整這個值讓框更居中
+
+# --- 按鈕 ---
+ready_button = pg.Rect(400, 400, 200, 60)

@@ -1,8 +1,9 @@
 # game_mainloop.py  遊戲主循環 與 loading
 import pygame as pg
 import asyncio
-import UI.game_play_ui as pl
+import UI.game_play as pl
 import UI.game_gameover_ui as ov
+import UI.game_waiting as wait
 import settings.game_settings as gs
 
 # 觀戰模式(未製作)
@@ -93,9 +94,7 @@ def run_game_loop(screen, client):
             player_count(screen, current_players)
 
         if current_game_state == "waiting":
-            waiting_surface = gs.FONT_SIZE.render("Waiting for players...", True, gs.WHITE)
-            waiting_rect = waiting_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT / 2))
-            screen.blit(waiting_surface, waiting_rect)
+            wait.draw_waiting_screen(screen, events, client)
 
         elif current_game_state == "loading":
             # 畫Loading

@@ -218,6 +218,8 @@ class GameClient:
             print("[前端] ws_receiver 已啟動，略過重複啟動")
             return
         self.ws_started = True
+        ct.ws_receiver_start_count += 1                 # 檢查連線
+        print(f"[Debug] 第 {ct.ws_receiver_start_count} 次啟動 ws_receiver")
         threading.Thread(target=lambda: asyncio.run(self.ws_receiver_async()), daemon=True).start()
 
     # 檢查  GameServer
@@ -268,6 +270,7 @@ class GameClient:
     # 遊戲前端ready按鈕
     def send_ready(self):
         try:
+            print("[Debug] client.send_ready() 被呼叫")
             asyncio.run(self.ws_conn.send("ready"))
             print(f"[前端] 發送 ready 給 GameServer")
         except:

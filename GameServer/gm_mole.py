@@ -55,42 +55,45 @@ async def mole_sender():
 # 特殊地鼠
 async def special_mole_sender():
     while True:
+        print("[GameServer] special_mole_sender 等待 phase_changed_event（僅在 playing 啟動）")
         await ct.phase_changed_event.wait()
-        print("[GameServer] special_mole_sender 收到 phase_changed_event → 檢查 game_phase =", ct.game_phase)
 
-        if ct.game_phase == "playing":
-            print("[GameServer] special_mole_sender 進入 playing loop!")
+        if ct.game_phase != "playing":
+            # 若不是 playing，則清掉事件並重新等待，不做任何事
+            ct.phasr_changed_event.clear()
+            continue
 
-            while ct.game_phase == "playing":
-                sleep_time = random.uniform(5.0, 10.0)
-                await asyncio.sleep(sleep_time)
+        print("[GameServer] special_mole_sender 進入 playing loop!")
+        while ct.game_phase == "playing":
+            sleep_time = random.uniform(5.0, 10.0)
+            await asyncio.sleep(sleep_time)
 
-                if ct.game_phase != "playing":
-                    break
+            if ct.game_phase != "playing":
+                break
 
-                ct.current_special_mole_id += 1
+            ct.current_special_mole_id += 1
 
-                all_positions = set(range(12))
-                occupied_position = {ct.current_mole["position"]}
-                available_positions = list(all_positions - occupied_position)
+            all_positions = set(range(12))
+            occupied_position = {ct.current_mole["position"]}
+            available_positions = list(all_positions - occupied_position)
 
-                if not available_positions:
-                    print("[GameServer] 沒有可用位置放特殊地鼠，跳過這輪")
-                    continue
+            if not available_positions:
+                print("[GameServer] 沒有可用位置放特殊地鼠，跳過這輪")
+                continue
 
-                ct.current_special_mole = {
-                    "mole_id": ct.current_special_mole_id,
-                    "position": random.choice(available_positions),
-                    "mole_type": "Diamond Mole",
-                    "active": True
-                }
+            ct.current_special_mole = {
+                "mole_id": ct.current_special_mole_id,
+                "position": random.choice(available_positions),
+                "mole_type": "Diamond Mole",
+                "active": True
+            }
 
-                await broadcast({
-                    "event": "special_mole_update",
-                    "mole": ct.current_special_mole
-                })
+            await broadcast({
+                "event": "special_mole_update",
+                "mole": ct.current_special_mole
+            })
 
 
 
-                print(f"[GameServer] 發送 Special Mole ID {ct.current_special_mole_id} at pos {ct.current_special_mole['position']}")
+            print(f"[GameServer] 發送 Special Mole ID {ct.current_special_mole_id} at pos {ct.current_special_mole['position']}")
 

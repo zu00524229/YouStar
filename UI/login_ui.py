@@ -77,15 +77,28 @@ def login_screen(screen):
         if clicked_login:
             clicked_login = False
             print("[Debug] clicked_login == True，開始送出登入")
+
+            # === 若已存在就連線，主動斷線，確保不殘留 zombie 連線 ===
+            if ct.shared_client and ct.shared_client.ws_conn:
+                try:
+                    print("[Debug] 檢測到就連線，關閉 WebSocket")
+                    asyncio.run(ct.shared_client.ws_conn.close())
+                    ct.shared_client.ws_conn = None     # 確實清掉
+                except:
+                    pass
+
             client = login_to_control(user_text, pass_text)
+
             if client and client.server_list:
-                running = False
+                running = False               
+                ct.shared_client = client # 儲存 client 為全域使用
+
                 print(f"[Debug] 登入後的 client.server_list 有幾台: {len(client.server_list)}")
-                # client.assigned_server = client.server_list[0]["server_url"]
-                client.server_url = client.server_list[0]["server_url"]
-                client.start_ws_receiver()
+                # client.server_url = client.server_list[0]["server_url"]
+                # client.start_ws_receiver()
                 print("[Debug] login_screen return 觸發，準備跳出登入畫面")
                 return client
+            
             elif client:
                 print("[錯誤] 無可用 GameServer")
                 message = "No available game server. Please try again later."

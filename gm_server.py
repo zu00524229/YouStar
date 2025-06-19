@@ -8,10 +8,10 @@ import math
 import settings.context as ct
 from GameServer.player_handler import player_handler
 from GameServer.gm_mole import mole_sender, special_mole_sender
-import GameServer.gm_playing as gm_play
-import GameServer.gm_loading as gm_load
-import GameServer.gm_gameover as gm_over
-import GameServer.gm_waiting as gm_wait
+import GameServer.gm_playing as play
+import GameServer.gm_loading as load
+import GameServer.gm_gameover as over
+import GameServer.gm_waiting as wait
 
 # ---------------------------------------------------
 # 向 ControlServer 註冊自己 & 持續報 status / ping
@@ -49,29 +49,29 @@ async def run_status_loop(ws):
 
             # --- playing -- 管理玩家離線與結束倒數
             if ct.game_phase == "playing":
-                await gm_play.handle_playing_phase()
+                await play.handle_playing_phase()
                 
             # --- waiting -- 玩家進入遊戲、觸發進入 loading 階段
-            if len(ct.connected_players) > 0 and ct.game_phase == "waiting" and not ct.post_gameover_cooldown:
-                gm_load.check_start_loading(now)
+            if ct.game_phase == "waiting" and not ct.post_gameover_cooldown:
+                wait.check_start_waiting(now)
 
             # --- loading -- 倒數完轉為 playing
             if ct.game_phase == "loading":
-                await gm_load.handle_loading_phase()
+                await load.handle_loading_phase()
 
             # --- gameover -- 倒數完轉換(等待玩家是否下局或觀戰)
             if ct.game_phase == "gameover":
-                await gm_over.handle_gameover_phase()
+                await over.handle_gameover_phase()
 
             # --- post_gameover -- 清除階段狀態並進入 waiting
             if ct.skip_next_status_update:
-                await gm_over.handle_post_gameover_transition()
+                await over.handle_post_gameover_transition()
                 continue
         
             # --- waiting -- 遊戲待機階段
             if ct.game_phase == "waiting" and ct.ready_offer_active:
                 if ct.ready_offer_start_time is not None:
-                    await gm_wait.handle_ready_offer(now)
+                    await wait.handle_ready_offer(now)
                 else:
                     print("[GameServer] ready_offer_start_time 是 None，略過 handle_ready_offer")
             
