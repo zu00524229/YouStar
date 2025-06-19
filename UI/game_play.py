@@ -115,13 +115,14 @@ def handle_playing_events(state, client, score, handle_quit):
     # print(f"[Debug] 地鼠是否有效 mole_active: {mole_active}")
 
     for event in pg.event.get():
-        print(f"[Debug] 事件類型: {event.type}")
+        # print(f"[Debug] 事件類型: {event.type}")
 
         if event.type == pg.QUIT:
             handle_quit()  # 回遊戲大廳
 
         elif event.type == pg.MOUSEBUTTONDOWN and mole_active:
             mouse_x, mouse_y = pg.mouse.get_pos()
+            
             
             x, y = gs.GRID_POSITIONS[current_mole_position]
             print(f"滑鼠: ({mouse_x}, {mouse_y}) | 地鼠中心: ({x}, {y}) | 距離平方: {(mouse_x - x) ** 2 + (mouse_y - y) ** 2}")
@@ -137,6 +138,7 @@ def handle_playing_events(state, client, score, handle_quit):
 
                     with client.state_lock:
                         client.score = score
+                        print(f"[Debug] 發送 hit 前 active = {client.mole_active}, mole_id = {client.current_mole_id}")
                         client.mole_active = False      # 防止幾乎同時打
                         # client.send_hit()
                     # asyncio.run_coroutine_threadsafe(client.send_hit_async(), client.async_loop)
@@ -176,9 +178,24 @@ def handle_playing_events(state, client, score, handle_quit):
                         gs.score_popups.append({"text": popup_text, "y_pos": gs.HEIGHT - 100, "alpha": 255})
 
 def draw_playing_screen(screen, state, client):
+    mouse_x, mouse_y = pg.mouse.get_pos()
+    
     draw_score(screen, client.score)                           # 分數顯示
     draw_time(screen, state["remaining_time"])          # 倒數時間顯示
     draw_live_leaderboard(screen, client.leaderboard_data)     # 即時排行榜
     draw_moles(screen, state)                           # 普通/特殊地鼠顯示
     draw_score_popups(screen)                           # 擊中地鼠的分數彈出動畫
     
+    # 顯示一般地鼠的打擊判定區（紅色）
+    if state["mole_active"] and state["current_mole_position"] >= 0:
+        x, y = gs.GRID_POSITIONS[state["current_mole_position"]]
+        pg.draw.circle(screen, (255, 0, 0), (x, y), 60, 2)  # 紅色邊框，半徑60（與邏輯一致）
+
+    # 顯示特殊地鼠的打擊判定區（青藍色）
+    if state["special_mole_active"] and state["current_special_mole_position"] >= 0:
+        sx, sy = gs.GRID_POSITIONS[state["current_special_mole_position"]]
+        pg.draw.circle(screen, (0, 255, 255), (sx, sy), 60, 2)  # 青藍色邊框
+
+    # 顯示滑鼠當前位置（黃十字）
+    pg.draw.line(screen, (255, 255, 0), (mouse_x - 10, mouse_y), (mouse_x + 10, mouse_y), 1)
+    pg.draw.line(screen, (255, 255, 0), (mouse_x, mouse_y - 10), (mouse_x, mouse_y + 10), 1)

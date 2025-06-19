@@ -58,6 +58,7 @@ async def player_handler(websocket):
                     hit_time = time.time()
                     spawn_time = ct.current_mole.get("spawn_time", 0)
                     duration = ct.current_mole.get("duration", 1.2)
+                    print(f"[Debug] 玩家打擊延遲 {delay:.2f}s vs 容許 {duration:.2f}s")
                     delay = hit_time - spawn_time
 
                     if ct.current_mole["mole_id"] != mole_id:
@@ -68,7 +69,7 @@ async def player_handler(websocket):
                         print(f"[GameServer] 玩家 {username} 嘗試打已失效的地鼠 {mole_id}，忽略")
                         return
 
-                    if delay > duration:
+                    if delay > duration + 0.2:
                         print(f"[GameServer] 玩家 {username} 打太慢了，延遲 {delay:.2f}s > {duration:.2f}s，忽略")
                         return
 
@@ -98,7 +99,7 @@ async def player_handler(websocket):
                     #         pass
 
                     # 非同步更新 leaderboard
-                    # asyncio.create_task(bc.broadcast_leaderboard())
+                    
                         
                 # 特殊地鼠接收訊號
                 elif msg.startswith("special_hit:"):
@@ -143,7 +144,7 @@ async def player_handler(websocket):
                         ct.leaderboard[final_user] = final_score
                         print(f"[GameServer] 更新 {final_user} 的最高分為 {final_score}")
 
-                # ✅ 未知訊息
+                # 未知訊息
                 else:
                     print(f"[GameServer] 收到未知訊息: {msg}")
 
@@ -156,6 +157,3 @@ async def player_handler(websocket):
         ct.player_websockets.pop(username, None)
         asyncio.create_task(notify_control_player_offline(username))
         print(f"[GameServer] 目前在線玩家: {ct.connected_players}")
-
-        # 通知中控：玩家離線
-        asyncio.create_task(notify_control_player_offline(username))

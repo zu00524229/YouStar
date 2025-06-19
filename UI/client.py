@@ -291,7 +291,7 @@ class GameClient:
             try:
                 msg = f"hit:{mole_id}:{score}"
                 await self.ws_conn.send(msg)
-                print(f"[前端] 發送打擊訊息：{msg}")
+                print(f"[前端] 發送打擊訊息：{msg}，loop={self.async_loop}")
             except Exception as e:
                 print(f"[前端] 發送 hit 失敗: {e}")
 
