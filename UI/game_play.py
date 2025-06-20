@@ -49,29 +49,6 @@ def draw_score_popups(screen):
 
 # 繪製地鼠
 def draw_moles(screen, state):
-    # # 一般地鼠
-    # if state["mole_active"] and state["current_mole_position"] >= 0:
-    #     x, y = gs.GRID_POSITIONS[state["current_mole_position"]]
-    #     mole_info = next((m for m in gs.MOLE_TYPES if m["name"] == state["current_mole_type_name"]), None)
-
-    #     if mole_info:
-    #         mole_color = mole_info["color"]
-    #         pg.draw.circle(screen, mole_color, (x, y), 50)
-
-    #         if state["current_mole_type_name"] == "Joker Mole":
-    #             question_font = pg.font.SysFont(None, 72)
-    #             question_surface = question_font.render("?", True, (gs.WHITE))
-    #             question_rect = question_surface.get_rect(center=(x, y))
-    #             screen.blit(question_surface, question_rect)
-
-    # # 特殊地鼠
-    # if state["special_mole_active"] and state["current_special_mole_position"] >= 0:
-    #     x, y = gs.GRID_POSITIONS[state["current_special_mole_position"]]
-    #     mole_info = next((m for m in gs.MOLE_TYPES if m["name"] == state["current_special_mole_type_name"]), None)
-    #     if mole_info:
-    #         mole_color = mole_info["color"]
-    #         pg.draw.circle(screen, (gs.WHITE), (x, y), 55)  # 外圈白框
-    #         pg.draw.circle(screen, mole_color, (x, y), 45)      # 內圈地鼠
     now = time.time()
 
     # === 一般地鼠 ===
@@ -102,80 +79,56 @@ def draw_moles(screen, state):
             pg.draw.circle(screen, mole_color, (x, y), 45)  # 內圈地鼠
 
 
+# 點擊冷卻控制
+last_click_time = 0
+click_cooldown = 0.3  # 每次打擊至少間隔 0.3 秒，避免連點送出
+
 # 處理打地鼠
 def handle_playing_events(state, client, score, handle_quit):
-    
-    mole_active = state["mole_active"]
-    special_mole_active = state["special_mole_active"]
-    current_mole_position = state["current_mole_position"]
-    current_special_mole_position = state["current_special_mole_position"]
-    current_mole_type_name = state["current_mole_type_name"]
-    current_special_mole_type_name = state["current_special_mole_type_name"]
+    global last_click_time
 
-    # print(f"[Debug] 地鼠是否有效 mole_active: {mole_active}")
+    mole_active = state.get("mole_active")
+    special_mole_active = state.get("special_mole_active")
+    current_mole_position = state.get("current_mole_position")
+    current_special_mole_position = state.get("current_special_mole_position")
+    current_mole_type_name = state.get("current_mole_type_name")
+    current_special_mole_type_name = state.get("current_special_mole_type_name")
+    current_mole_score = state.get("current_mole_score")
+    current_mole_id = state.get("current_mole_id")
+    current_special_mole_id = state.get("current_special_mole_id")
 
     for event in pg.event.get():
-        # print(f"[Debug] 事件類型: {event.type}")
-
         if event.type == pg.QUIT:
-            handle_quit()  # 回遊戲大廳
+            handle_quit()
 
-        elif event.type == pg.MOUSEBUTTONDOWN and mole_active:
+        elif event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+            now = time.time()
+            if now - last_click_time < click_cooldown:
+                print("[前端] 點擊太快，忽略")
+                return
+            last_click_time = now
+
             mouse_x, mouse_y = pg.mouse.get_pos()
-            
-            
-            x, y = gs.GRID_POSITIONS[current_mole_position]
-            print(f"滑鼠: ({mouse_x}, {mouse_y}) | 地鼠中心: ({x}, {y}) | 距離平方: {(mouse_x - x) ** 2 + (mouse_y - y) ** 2}")
 
+            # === 一般地鼠判定 ===
+            if mole_active and current_mole_position is not None:
+                x, y = gs.GRID_POSITIONS[current_mole_position]
+                dist_sq = (mouse_x - x) ** 2 + (mouse_y - y) ** 2
 
-            # === 打中一般地鼠 ===
-            if (mouse_x - x) ** 2 + (mouse_y - y) ** 2 <= 60 ** 2:  # 打擊判定範圍
-                mole_info = next((m for m in gs.MOLE_TYPES if m["name"] == current_mole_type_name), None)
-                if mole_info:
-                    random_score = random.randint(*mole_info["score_range"]) if "score_range" in mole_info else mole_info["score"]
-                    score += random_score
-                    print(f"打中了 {current_mole_type_name}：{random_score}")
+                if dist_sq <= 60 ** 2:
+                    print(f"[前端] 命中一般地鼠 ID={current_mole_id} Score={current_mole_score}")
+                    asyncio.create_task(client.send_hit(current_mole_id, current_mole_score))
 
-                    with client.state_lock:
-                        client.score = score
-                        print(f"[Debug] 發送 hit 前 active = {client.mole_active}, mole_id = {client.current_mole_id}")
-                        client.mole_active = False      # 防止幾乎同時打
-                        # client.send_hit()
-                    # asyncio.run_coroutine_threadsafe(client.send_hit_async(), client.async_loop)
-                    asyncio.run_coroutine_threadsafe(
-                        client.send_hit_async(client.current_mole_id, random_score),
-                        client.async_loop
-                    )
-                                    
-                    state["mole_active"] = False        # 同步狀態也標記為 False（避免畫面上還可點）
-
-                    popup_text = f"+{random_score} {current_mole_type_name}" if random_score >= 0 else f"{random_score} {current_mole_type_name}"
-                    gs.score_popups.append({"text": popup_text, "y_pos": gs.HEIGHT - 100, "alpha": 255})
-
-            # === 打中特殊地鼠 ===
-            elif special_mole_active and current_special_mole_position >= 0:
+            # === 特殊地鼠判定 ===
+            if special_mole_active and current_special_mole_position is not None:
                 x, y = gs.GRID_POSITIONS[current_special_mole_position]
-                if (mouse_x - x) ** 2 + (mouse_y - y) ** 2 <= 60 ** 2:  # 打擊判定範圍
-                    mole_info = next((m for m in gs.MOLE_TYPES if m["name"] == current_special_mole_type_name), None)
-                    if mole_info:
-                        special_score = mole_info["score"]
-                        score += special_score
-                        print(f"打中了 {current_special_mole_type_name}：{special_score}")
+                dist_sq = (mouse_x - x) ** 2 + (mouse_y - y) ** 2
 
-                        with client.state_lock:
-                            client.score = score
-                            client.special_mole_active = False     # 防止幾乎同時打
-                        # client.send_special_hit()
-                        # asyncio.run_coroutine_threadsafe(client.send_special_hit_async(), client.async_loop)
-                        asyncio.run_coroutine_threadsafe(
-                            client.send_special_hit_async(client.current_special_mole_id, special_score),
-                            client.async_loop
-                        )
+                if dist_sq <= 60 ** 2:
+                    special_score = next((m["score"] for m in gs.MOLE_TYPES if m["name"] == current_special_mole_type_name), 0)
+                    print(f"[前端] 命中特殊地鼠 ID={current_special_mole_id} Score={special_score}")
+                    asyncio.create_task(client.send_special_hit(current_special_mole_id, special_score))
 
-                        state["special_mole_active"] = False        # 同步狀態關閉
-
-                        popup_text = f"+{special_score} {current_special_mole_type_name}"
-                        gs.score_popups.append({"text": popup_text, "y_pos": gs.HEIGHT - 100, "alpha": 255})
 
 def draw_playing_screen(screen, state, client):
     mouse_x, mouse_y = pg.mouse.get_pos()

@@ -5,6 +5,17 @@ import math
 import settings.context as ct
 import GameServer.broadcaster as bc
 
+# 確認是否可以進入 loading 階段（通常由 ready → loading 時呼叫）
+async def check_start_loading(now):
+    if ct.ready_players:
+        ct.game_phase = "loading"
+        ct.loading_start_time = now
+        ct.last_loading_broadcast = 0  # 重設倒數廣播計時器
+
+        print(f"[GameServer] 準備進入 loading 階段，ready_players: {ct.ready_players}")
+
+        await bc.broadcast_status_update()
+        ct.phase_changed_event.set()
 
 # 處理 loading 邏輯
 async def handle_loading_phase():

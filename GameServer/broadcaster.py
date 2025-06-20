@@ -39,17 +39,18 @@ async def broadcast_loading_status():
     print("[Broadcast] 已送出 status_update：game_phase = loading")
 
 
-# 排行榜廣播
-async def broadcast_leaderboard():
-    await broadcast({
-        "event": "leaderboard_update",
-        "leaderboard": [
-            {"username": user, "score": score}
-            for user, score in ct.current_scores.items()
-        ]
-    })
+# 廣播最終 leaderboard（使用歷史最高分）
+async def broadcast_final_leaderboard():
+    leaderboard_result = [
+        {"username": username, "score": score}
+        for username, score in ct.leaderboard.items()
+    ]
+    leaderboard_result.sort(key=lambda x: x["score"], reverse=True)
 
-# #  廣播當前狀態 : 通用 status_update（所有階段都可使用
+    ct.leaderboard = {entry["username"]: entry["score"] for entry in leaderboard_result}  # 可選：存起來
+
+
+#  廣播當前狀態 : 通用 status_update（所有階段都可使用
 async def broadcast_status_update():
     now = time.time()
 
@@ -63,9 +64,10 @@ async def broadcast_status_update():
     else:
         remaining_game_time = 0
 
+    print("[Debug] 廣播狀態前 current_scores：", ct.current_scores)
     leaderboard_list = [
-        {"username": u, "score": ct.current_scores.get(u, 0)}
-        for u in ct.connected_players
+        {"username": username, "score": score}
+        for username, score in ct.current_scores.items()
     ]
 
     status_update = {
@@ -76,6 +78,6 @@ async def broadcast_status_update():
         "current_players": len(ct.connected_players),
         "leaderboard": sorted(leaderboard_list, key=lambda x: x["score"], reverse=True),
     }
-
+    print("[Debug] 廣播狀態：", status_update)
     await broadcast(status_update)
 

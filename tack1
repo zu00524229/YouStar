@@ -1,0 +1,50 @@
+| 任務                    | 說明                                     | 技術建議                                    | 是否獨立？          |                      |
+| --------------------- | -------------------------------------- | --------------------------------------- | -------------- | -------------------- |
+| 🎯 地鼠發送（mole\_sender） | 產生、廣播地鼠 → 必須讓每位玩家畫面同步                  | ✅ 可用 async，但因為固定時間迴圈 + 高 CPU 建議用 Thread | ✅ 是            |                      |
+| 🧠 接收玩家訊息（WebSocket）  | 玩家打擊、ready、final、join\_ready           | ✅ 用 async → `player_handler` 已設計好       | ✅ 是            |                      |
+| 🏆 更新排行榜              | 每打中一隻地鼠就更新 → 廣播排行榜                     | ✅ 用 async，因為打擊事件可能很多                    | ✅ 是（廣播部分可封裝）   |                      |
+| 📡 發送 status 給玩家      | 傳送：剩餘時間、當前階段、排行榜                       | 用意：畫面右上顯示「時間 / phase」，維持同步              | ✅ async        | ✅ 是（你可調整頻率，如每 0.5 秒） |
+| ⏱️ 遊戲階段切換             | waiting → loading → playing → gameover | **必須同步、排他進行**                           | ✅ async 模組化已完成 | ✅ 是                  |
+
+完整遊戲流程概覽】（前端角度）
+登入畫面（login_ui.py）
+
+玩家輸入帳號密碼
+
+傳送至 ControlServer 驗證
+
+取得 GameServer 清單 → 轉跳大廳
+
+遊戲大廳畫面（game_lobby.py）
+
+顯示所有 GameServer 狀態與人數
+
+玩家點選某個 server → 建立 WebSocket → 轉跳「等待/準備」畫面
+
+進入 GameServer 後等待畫面（Waiting Phase）（game_waiting.py）
+
+等待其他人加入
+
+可以點「Again / Ready」→ 送出 "ready" 訊息給 GameServer
+
+Loading 畫面（Loading Phase）（game_loading.py 或主循環直接畫）
+
+所有人 ready 後進入 loading 倒數（10秒）
+
+顯示倒數畫面
+
+倒數結束後轉入遊戲畫面
+
+遊戲進行畫面（Playing Phase）（game_play_ui.py）
+
+顯示分數、時間、地鼠
+
+玩家打擊 → 分數上傳
+
+遊戲結束畫面（GameOver Phase）（game_gameover_ui.py）
+
+顯示排行榜與操作按鈕
+
+選擇 Again → 再走一次 ready 流程
+
+選擇 Lobby → 回到大廳選 GameServer

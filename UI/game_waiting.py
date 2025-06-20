@@ -1,11 +1,13 @@
 # game_waiting.py
 import pygame as pg
+import asyncio
 import settings.game_settings as gs
 
 def draw_waiting_screen(screen, events, client):
+    ready_clicked = False
     # === 背景文字 ===
     waiting_surface = gs.FONT_SIZE.render("Waiting for players...", True, gs.WHITE)
-    waiting_rect = waiting_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT / 2 - 120))
+    waiting_rect = waiting_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT / 2 - 100))
     screen.blit(waiting_surface, waiting_rect)
 
     # === 教學說明（中文 + 置中） ===
@@ -39,4 +41,8 @@ def draw_waiting_screen(screen, events, client):
     for event in events:
         if event.type == pg.MOUSEBUTTONDOWN and ready_button.collidepoint(event.pos):
             print("[前端] 玩家按下 Ready")
+            ready_clicked = True
+            # asyncio.create_task(client.send_ready())
             client.send_ready()
+    
+    return ready_clicked

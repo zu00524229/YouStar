@@ -6,7 +6,7 @@ import GameServer.broadcaster as bc
 
 # 檢查是否可從 waiting 轉入 loading 階段
 async def check_start_waiting(now):
-    print(f"[Debug] 目前 ready_players: {ct.ready_players}")
+    # print(f"[Debug] 目前 ready_players: {ct.ready_players}")
     if len(ct.ready_players) > 0 and ct.game_phase == "waiting" and not ct.post_gameover_cooldown:
         ct.game_phase = "loading"
         ct.loading_start_time = now

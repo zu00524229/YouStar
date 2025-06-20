@@ -4,8 +4,8 @@ import pygame as pg
 import settings.game_settings as gs
 
 
-# ✅ 主函式：繪製遊戲結束畫面與互動邏輯
-def draw_gameover_screen(screen, leaderboard_data, handle_quit, client, handle_quit_to_lobby):
+# 主函式：繪製遊戲結束畫面與互動邏輯
+def draw_gameover_screen(screen, handle_quit, client, handle_quit_to_lobby):
     # --- 狀態檢查：非 gameover 就不顯示此畫面 ---
     if client.game_state != "gameover":
         print("[前端] 已進入非 gameover 狀態，跳出畫面")
@@ -22,8 +22,8 @@ def draw_gameover_screen(screen, leaderboard_data, handle_quit, client, handle_q
     leaderboard_rect = leaderboard_surface.get_rect(center=(gs.WIDTH / 2, 70))
     screen.blit(leaderboard_surface, leaderboard_rect)
 
-    # --- 顯示排行榜前五名 ---
-    for idx, entry in enumerate(leaderboard_data[:5]):
+    # --- 顯示排行榜前五名（使用歷史最高分） ---
+    for idx, entry in enumerate(client.final_leaderboard_data[:5]):
         text = f"{idx + 1} {entry['username']} - {entry['score']}"
         entry_surface = gs.FONT_SIZE.render(text, True, gs.WHITE)
         screen.blit(entry_surface, (gs.WIDTH / 2 - 120, 100 + idx * 50))

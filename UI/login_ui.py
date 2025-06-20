@@ -1,25 +1,18 @@
-# login 遊戲登入畫面 login_ui.py
+# login_ui.py
 import pygame as pg
-from UI.client import GameClient
 import time
-import json
 import asyncio
-import websockets
 import settings.game_settings as gs
 import settings.context as ct
+from Controllers.login_controller import login_to_control
 
-# pg.init()
-
-# FONT = gs.FONT_SIZE
 WHITE, BLACK, BLUE = gs.WHITE, gs.BLACK, gs.LOGIN_BLUE
+RED = gs.ERROR_RED
 color_inactive = pg.Color('lightskyblue3')
 color_active = pg.Color('dodgerblue2')
-RED = gs.ERROR_RED
 
 box_width, box_height = gs.LOGIN_BOX_WIDTH, gs.LOGIN_BOX_HEIGHT
 gap = gs.LOGIN_GAP
-
-# 動態置中
 center_x = gs.WIDTH // 2 - box_width // 2 + gs.center_x_offset
 center_y = gs.HEIGHT // 2 - box_height * 2
 
@@ -27,10 +20,7 @@ input_box_user = pg.Rect(center_x, center_y, box_width, box_height)
 input_box_pass = pg.Rect(center_x, center_y + box_height + gap, box_width, box_height)
 login_button = pg.Rect(center_x, center_y + 2 * (box_height + gap), box_width, box_height)
 
-
-clock = pg.time.Clock()
-
-def login_screen(screen):
+async def login_screen(screen):
     clock = pg.time.Clock()
     user_text, pass_text = '', ''
     active_user, active_pass = True, False
@@ -42,29 +32,22 @@ def login_screen(screen):
         screen.fill(gs.BLACK)
         mouse_pos = pg.mouse.get_pos()
 
-        # --- 顯示遊戲標題 ---
-        title_text = "Whack Legends"
-        title_surface = gs.BIG_FONT_SIZE.render(title_text, True, WHITE)
+        # 遊戲標題
+        title_surface = gs.BIG_FONT_SIZE.render("Whack Legends", True, WHITE)
         title_rect = title_surface.get_rect(center=(gs.WIDTH // 2, 130))
         screen.blit(title_surface, title_rect)
 
-        # === 事件處理 ===
         for event in pg.event.get():
             if event.type == pg.QUIT:
-                pg.quit()
-                exit()
-
+                pg.quit(); exit()
             elif event.type == pg.MOUSEBUTTONDOWN:
                 active_user = input_box_user.collidepoint(event.pos)
                 active_pass = input_box_pass.collidepoint(event.pos)
-
                 if login_button.collidepoint(event.pos):
                     clicked_login = True
-
             elif event.type == pg.KEYDOWN:
                 if event.key == pg.K_TAB:
                     active_user, active_pass = not active_user, not active_pass
-
                 elif event.key == pg.K_RETURN:
                     clicked_login = True
                 else:
@@ -73,128 +56,45 @@ def login_screen(screen):
                     elif active_pass:
                         pass_text = pass_text[:-1] if event.key == pg.K_BACKSPACE else pass_text + event.unicode
 
-        # === 登入流程整合處理 ===
         if clicked_login:
             clicked_login = False
-            print("[Debug] clicked_login == True，開始送出登入")
+            try:
+                # 關閉舊連線（若存在）
+                if ct.shared_client and ct.shared_client.ws_conn:
+                    await ct.shared_client.ws_conn.close()
 
-            # === 若已存在就連線，主動斷線，確保不殘留 zombie 連線 ===
-            if ct.shared_client and ct.shared_client.ws_conn:
-                try:
-                    print("[Debug] 檢測到就連線，關閉 WebSocket")
-                    asyncio.run(ct.shared_client.ws_conn.close())
-                    ct.shared_client.ws_conn = None     # 確實清掉
-                except:
-                    pass
+                client = await login_to_control(user_text, pass_text)
 
-            client = login_to_control(user_text, pass_text)
+                if client and client.server_list:
+                    ct.shared_client = client
+                    await client.connect_to_server()
+                    return client
+                else:
+                    message = "登入失敗，請確認帳號密碼或伺服器連線"
+            except Exception as e:
+                message = f"錯誤：{str(e)}"
 
-            if client and client.server_list:
-                running = False               
-                ct.shared_client = client # 儲存 client 為全域使用
+        # 顯示輸入框與提示文字
+        label_user = gs.SMALL_FONT_SIZE.render("Username:", True, BLUE)
+        label_pass = gs.SMALL_FONT_SIZE.render("Password:", True, BLUE)
+        screen.blit(label_user, (input_box_user.x - label_user.get_width() - 10, input_box_user.y + 10))
+        screen.blit(label_pass, (input_box_pass.x - label_pass.get_width() - 10, input_box_pass.y + 10))
 
-                print(f"[Debug] 登入後的 client.server_list 有幾台: {len(client.server_list)}")
-                # client.server_url = client.server_list[0]["server_url"]
-                # client.start_ws_receiver()
-                print("[Debug] login_screen return 觸發，準備跳出登入畫面")
-                return client
-            
-            elif client:
-                print("[錯誤] 無可用 GameServer")
-                message = "No available game server. Please try again later."
-            else:
-                message = "Login failed. Please check your username or password."
-
-        # 計算提示字寬度，用來做右對齊
-        label_user_text = "Username:"
-        label_pass_text = "Password:"
-        label_user = gs.SMALL_FONT_SIZE.render(label_user_text, True, BLUE)
-        # label_user = gs.BIG_FONT_SIZE.render(label_user_text, True, BLUE)
-        label_pass = gs.SMALL_FONT_SIZE.render(label_pass_text, True, BLUE)
-        # label_pass = gs.BIG_FONT_SIZE.render(label_pass_text, True, BLUE)
-
-        label_offset = 10  # 字與框之間的距離
-
-        # 提示文字 X 位置靠右對齊輸入框左邊
-        label_user_x = input_box_user.x - label_user.get_width() - label_offset
-        label_pass_x = input_box_pass.x - label_pass.get_width() - label_offset
-
-        # Y 對齊到框框中間（向下偏 5 看起來會剛好）
-        screen.blit(label_user, (label_user_x, input_box_user.y + 10))
-        screen.blit(label_pass, (label_pass_x, input_box_pass.y + 10))
-
-        hover_login = login_button.collidepoint(mouse_pos)
-        btn_color = (gs.HOVAR) if hover_login else gs.LOGIN_BUTTON_COLOR
-        pg.draw.rect(screen, btn_color, login_button)
-
-        # 輸入框與文字
         pg.draw.rect(screen, color_active if active_user else color_inactive, input_box_user, 2)
         pg.draw.rect(screen, color_active if active_pass else color_inactive, input_box_pass, 2)
         screen.blit(gs.SMALL_FONT_SIZE.render(user_text, True, WHITE), (input_box_user.x + 5, input_box_user.y + 5))
         screen.blit(gs.SMALL_FONT_SIZE.render('*' * len(pass_text), True, WHITE), (input_box_pass.x + 5, input_box_pass.y + 5))
 
-        # 登入按鈕
-        pg.draw.rect(screen, gs.LOGIN_BUTTON_COLOR, login_button)
+        # login 按鈕
+        btn_color = gs.HOVAR if login_button.collidepoint(mouse_pos) else gs.LOGIN_BUTTON_COLOR
+        pg.draw.rect(screen, btn_color, login_button)
         btn_text = gs.SMALL_FONT_SIZE.render("login", True, WHITE)
         screen.blit(btn_text, (login_button.centerx - btn_text.get_width() // 2,
                                login_button.centery - btn_text.get_height() // 2))
 
-        # 錯誤訊息
         if message:
             msg_surface = gs.SMALL_FONT_SIZE.render(message, True, RED)
             screen.blit(msg_surface, (gs.WIDTH // 2 - msg_surface.get_width() // 2, login_button.y + 60))
 
         pg.display.flip()
         clock.tick(30)
-
-
-_control_loop = None  # 全域事件迴圈，只初始化一次
-
-def login_to_control(username, password):
-    global _control_loop
-
-    if not _control_loop:
-        _control_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(_control_loop)
-
-    client = GameClient(username, password)
-    _control_loop.run_until_complete(_login_async(client))
-    # print(f"[Debug] login_to_control 結束時 client.server_list 長這樣：{client.server_list}")
-    return client if client.login_success else None
-
-
-async def _login_async(client):
-    try:
-        async with websockets.connect(ct.CONTROL_SERVER_WS) as ws:
-            await ws.send(json.dumps({
-                "type": "login",
-                "username": client.username,
-                "password": client.password
-            }))
-
-            response = await ws.recv()
-            data = json.loads(response)
-
-            if data.get("type") == "login_response" and data.get("success"):
-                print(f"[前端] 登入成功，準備取得 GameServer 列表")
-                client.login_success = True
-
-                await ws.send(json.dumps({"type": "get_server_list"}))
-                response = await ws.recv()
-                data = json.loads(response)
-
-                if data.get("type") == "get_server_list_response":
-                    client.server_list = data.get("server_list", [])
-                    # print(f"[Debug] client.server_list = {client.server_list}")
-                    print(f"[前端] 取得 GameServer 列表，共 {len(client.server_list)} 台：")
-                    for i, server in enumerate(client.server_list):
-                        print(f"  [{i}] {server['server_url']} | players: {server['current_players']}/{server['max_players']} | phase: {server['game_phase']}")
-
-            else:
-                print(f"[前端] 登入失敗: {data.get('reason')}")
-
-    except Exception as e:
-        if "received 1000" in str(e):
-            print(f"[登入] login_async 正常結束 (code 1000)，不視為錯誤")
-        else:
-            print(f"[登入] 發生錯誤: {e}")

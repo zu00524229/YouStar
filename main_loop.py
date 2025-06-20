@@ -57,15 +57,21 @@ def player_count(surface, current_players):
 
 # 等待GameServer 狀態刷新
 def wait_until_state_not_gameover(client, delay_ms = 100):
+    attempts = 0
     while True:
-        state = client.sync_game_state()
-        if state["game_state"] != "gameover":
+        if client.game_state != "gameover":
+            print("[debug] game_state 已脫離 gameover，跳出等待")
             break
         print("[debug] 初始狀態為 gameover，等待狀態刷新...")
         pg.time.wait(delay_ms)
+        attempts += 1
+        if attempts > 200:
+            print("[警告] 等待超過 20 秒仍為 gameover，強制跳出")
+            break
 
 
 def run_game_loop(screen, client: GameClient):
+    pg.time.wait(200) # 稍等 0.2 秒
 
     clock = pg.time.Clock()
 
@@ -106,7 +112,12 @@ def run_game_loop(screen, client: GameClient):
 
         if current_game_state == "waiting":
             # print("[MainLoop] 進入畫面：waiting")
-            wait.draw_waiting_screen(screen, events, client)
+            ready_clicked = wait.draw_waiting_screen(screen, events, client)
+            if ready_clicked:
+                client.send_ready()
+            # ready_clicked = wait.draw_waiting_screen(screen, events, client)
+            # if ready_clicked:
+            #     asyncio.create_task(client.send_ready())
 
         elif current_game_state == "loading":
             # print("[MainLoop] 進入畫面：loading")
@@ -128,10 +139,11 @@ def run_game_loop(screen, client: GameClient):
                 if client.game_state != "gameover":
                     print("[前端] 偵測到已離開 gameover 狀態，中止 gameover 畫面迴圈")
                     break
-
-                ov.draw_gameover_screen(screen, leaderboard_data, handle_quit, client, handle_quit_to_lobby)
+        
+                ov.draw_gameover_screen(screen, handle_quit, client, handle_quit_to_lobby)
                 pg.display.flip()
                 pg.time.wait(100)  # 降低 CPU 負擔
+        
 
             if client.ready_mode == "again":
                 return "again"

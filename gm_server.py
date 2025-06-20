@@ -6,8 +6,10 @@ import time
 import random
 import math
 import settings.context as ct
+from GameServer.mole_thread import mole_sender_thread
+import threading
 from GameServer.player_handler import player_handler
-from GameServer.gm_mole import mole_sender, special_mole_sender
+from GameServer.gm_special_mole import special_mole_sender
 import GameServer.gm_playing as play
 import GameServer.gm_loading as load
 import GameServer.gm_gameover as over
@@ -53,6 +55,7 @@ async def run_status_loop(ws):
 
             # --- loading -- 倒數完轉為 playing
             if ct.game_phase == "loading":
+                print("[Debug] run_status_loop 檢測到 loading，呼叫 handle_loading_phase()")
                 await load.handle_loading_phase()
 
             # --- playing -- 管理玩家離線與結束倒數
@@ -85,7 +88,7 @@ async def run_status_loop(ws):
             else:
                 remaining_game_time = 0
 
-
+            # 更新及時分數
             leaderboard_list = []
             for username in ct.connected_players:
                 score = ct.current_scores.get(username, 0)
@@ -97,6 +100,7 @@ async def run_status_loop(ws):
             # 給中控
             status_update = {
                 "type": "update_status",
+                "server_url": ct.MY_GAME_SERVER_WS,
                 "current_players": len(ct.connected_players),
                 "in_game": len(ct.connected_players) > 0,
                 "remaining_time": remaining_game_time,
@@ -123,14 +127,20 @@ async def run_status_loop(ws):
 # ---------------------------------------------------
 # 啟動主流程
 async def main():
-    asyncio.create_task(register_to_control())
-    asyncio.create_task(mole_sender())
+    # 特殊地鼠 async 任務(因為少出現 非同步就夠了)
     asyncio.create_task(special_mole_sender())
+    # 一般地鼠 執行續 任務(同步)
+    thread = threading.Thread(target=mole_sender_thread, daemon=True)
+    thread.start()
 
+     # 啟動中控註冊 & 狀態更新
+    asyncio.create_task(register_to_control())
+
+
+    # 啟動玩家連線伺服器
     server = await websockets.serve(player_handler, "0.0.0.0", 8001)
     print("[GameServer] 等待玩家連線 (port 8001) ...")
     await asyncio.Future()  # run forever
-    await server.wait_closed()
 
 # run
 asyncio.run(main())

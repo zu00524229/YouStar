@@ -34,7 +34,10 @@ async def notify_control_player_offline(username):
 
 # 玩家處理器 GameServer 控制
 async def player_handler(websocket):
+    print("[Debug] player_handler() 開始")
+    
     username = await websocket.recv()
+    print(f"[GameServer] 玩家 {username} 建立 WebSocket ID = {id(websocket)}")
     print(f"[GameServer] 玩家 {username} 連線進來")
 
     ct.connected_players.add(username)
@@ -43,6 +46,32 @@ async def player_handler(websocket):
 
     # 通知中控：玩家加入
     asyncio.create_task(notify_control_player_joined(username))
+
+    # 傳送目前的 GameServer 狀態給新加入的玩家
+    try:
+        leaderboard_list = []
+        for user in ct.connected_players:
+            score = ct.current_scores.get(user, 0)
+            leaderboard_list.append({
+                "username": user,
+                "score": score
+            })
+
+        status_update = {
+            "event": "status_update",
+            "game_phase": ct.game_phase,
+            "remaining_time": 0,
+            "loading_time": 0,
+            "current_players": len(ct.connected_players),
+            "leaderboard": sorted(leaderboard_list, key=lambda x: x["score"], reverse=True)
+        }
+
+        await websocket.send(json.dumps(status_update))
+        print(f"[GameServer] 傳送初始狀態 status_update 給 {username}: {ct.game_phase}")
+
+    except Exception as e:
+        print(f"[GameServer] 傳送初始狀態給 {username} 失敗: {e}")
+
 
     try:
         async for msg in websocket:
@@ -58,8 +87,8 @@ async def player_handler(websocket):
                     hit_time = time.time()
                     spawn_time = ct.current_mole.get("spawn_time", 0)
                     duration = ct.current_mole.get("duration", 1.2)
-                    print(f"[Debug] 玩家打擊延遲 {delay:.2f}s vs 容許 {duration:.2f}s")
                     delay = hit_time - spawn_time
+                    print(f"[Debug] 玩家打擊延遲 {delay:.2f}s vs 容許 {duration:.2f}s")
 
                     if ct.current_mole["mole_id"] != mole_id:
                         print(f"[GameServer] 玩家 {username} 打錯地鼠 {mole_id}，當前是 {ct.current_mole['mole_id']}")
@@ -77,6 +106,7 @@ async def player_handler(websocket):
                     print(f"[GameServer] 玩家 {username} 打中地鼠 {mole_id}，分數 {player_score}")
                     ct.current_mole["active"] = False
                     ct.current_scores[username] = ct.current_scores.get(username, 0) + player_score
+                    print(f"[Debug] 打完後 ct.current_scores = {ct.current_scores}")
 
                     # 更新最高分
                     if ct.current_scores[username] > ct.leaderboard.get(username, 0):
@@ -88,18 +118,15 @@ async def player_handler(websocket):
                         "event": "mole_update",
                         "mole": ct.current_mole
                     })
+                    await asyncio.sleep(0.05)
+                    await bc.broadcast_status_update()
                     
-                    asyncio.create_task(bc.broadcast_leaderboard())
+                    # if ct.game_phase == "playing":
+                    #     asyncio.create_task(bc.broadcast_leaderboard_live())
                     print("[Debug] 廣播 leaderboard 中:", ct.current_scores)
+                    print(f"[Debug] 比對打擊地鼠 ID：client送出 = {mole_id}，server目前 = {ct.current_mole['mole_id']}")
 
-                    # for player, ws_conn in ct.player_websockets.items():
-                    #     try:
-                    #         await ws_conn.send(json.dumps(mole_msg))
-                    #     except:
-                    #         pass
-
-                    # 非同步更新 leaderboard
-                    
+                
                         
                 # 特殊地鼠接收訊號
                 elif msg.startswith("special_hit:"):
@@ -131,6 +158,8 @@ async def player_handler(websocket):
                 # 玩家選擇參與 ready 階段
                 elif msg == "join_ready":
                     print(f"[GameServer] 玩家 {username} 加入 ready 隊列")
+                    if not hasattr(ct, 'ready_players') or not isinstance(ct.ready_players, set):
+                        ct.ready_players = set()
                     ct.ready_players.add(username)
 
                 # 玩家提交最終分數：final:<username>:<score>
