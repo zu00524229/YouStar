@@ -4,10 +4,11 @@ import websockets
 import json
 import time
 import random
-import math
-import settings.context as ct
-from GameServer.mole_thread import mole_sender_thread
+# import math
 import threading
+import settings.context as ct
+import GameServer.broadcaster as bc
+from GameServer.mole_thread import mole_sender_thread
 from GameServer.player_handler import player_handler
 from GameServer.gm_special_mole import special_mole_sender
 import GameServer.gm_playing as play
@@ -44,19 +45,40 @@ async def run_status_loop(ws):
 
     loop_id = random.randint(1000, 9999)
     print(f"[GameServer] run_status_loop 啟動！loop_id = {loop_id}")
+    last_log_time = time.time()
 
     try:
         while True:
             now = time.time()
 
+            # 1. 每 5 秒印出狀態 log，確認還活著
+            if now - last_log_time >= 5:
+                print(f"[StatusLoop-{loop_id}] still alive... phase={ct.game_phase}, players={len(ct.connected_players)}")
+                last_log_time = now
+
+            # 2. 廣播當前狀態給所有玩家
+            await bc.broadcast_status_update()
+
+            # 3. 傳送 ping 給中控，包進 try 避免中斷整個 loop
+            try:
+                await ws.send(json.dumps({"type": "ping"}))
+            except Exception as e:
+                print(f"[GameServer-{loop_id}] 傳送 ping 給中控失敗: {e}")
+
+
+
             # --- waiting -- 玩家進入遊戲、觸發進入 loading 階段
             if ct.game_phase == "waiting":
+                print(f"[Debug] game_phase={ct.game_phase}, ready_offer_active={ct.ready_offer_active}, loading_start_time={ct.loading_start_time}")
                 await wait.check_start_waiting(now)
+                if ct.ready_offer_active and ct.loading_start_time is not None:
+                    await wait.handle_ready_offer(now)
 
             # --- loading -- 倒數完轉為 playing
             if ct.game_phase == "loading":
                 print("[Debug] run_status_loop 檢測到 loading，呼叫 handle_loading_phase()")
                 await load.handle_loading_phase()
+                print("[Debug]  handle_loading_phase() 被呼叫進來了")
 
             # --- playing -- 管理玩家離線與結束倒數
             if ct.game_phase == "playing":
@@ -71,71 +93,36 @@ async def run_status_loop(ws):
                 await over.handle_post_gameover_transition()
                 continue
         
-            # --- waiting -- 遊戲待機階段
+            # --- waiting & ready_offer 的情況 -- 
             if ct.game_phase == "waiting" and ct.ready_offer_active:
                 if ct.loading_start_time is not None:
                     await wait.handle_ready_offer(now)
                 else:
                     print("[GameServer] loading_start_time 是 None，略過 handle_ready_offer")
             
-            if ct.game_phase == "loading" and ct.loading_start_time is not None:
-                loading_time_left = max(0, math.ceil(10 - (now - ct.loading_start_time)))
-            else:
-                loading_time_left = 0
 
-            if ct.game_phase == "playing" and ct.game_start_time is not None:
-                remaining_game_time = max(0, ct.GAME_DURATION - int(now - ct.game_start_time))
-            else:
-                remaining_game_time = 0
+            await bc.broadcast_status_update()      # 使用通用 status_update 廣播器
 
-            # 更新及時分數
-            leaderboard_list = []
-            for username in ct.connected_players:
-                score = ct.current_scores.get(username, 0)
-                leaderboard_list.append({
-                    "username": username,
-                    "score": score
-                })
-
-            # 給中控
-            status_update = {
-                "type": "update_status",
-                "server_url": ct.MY_GAME_SERVER_WS,
-                "current_players": len(ct.connected_players),
-                "in_game": len(ct.connected_players) > 0,
-                "remaining_time": remaining_game_time,
-                "leaderboard": sorted(leaderboard_list, key=lambda x: x["score"], reverse=True),
-                "game_phase": ct.game_phase,
-                "loading_time": loading_time_left
-            }
-            # print("[GameServer] 已送出 update_status 給中控：", status_update)
-            await ws.send(json.dumps(status_update))
-
-            for player, ws_conn in ct.player_websockets.items():
-                try:
-                    await ws_conn.send(json.dumps(status_update))
-                except:
-                    pass
-
-            await ws.send(json.dumps({"type": "ping"}))
+            # await ws.send(json.dumps({"type": "ping"}))
             await asyncio.sleep(1)
 
     except Exception as e:
         print(f"[GameServer] run_status_loop 發生異常: {e}")
 
-    print(f"[STATUS UPDATE] remaining_time: {remaining_game_time}")
+    # print(f"[STATUS UPDATE] remaining_time: {remaining_game_time}")
+    
 # ---------------------------------------------------
 # 啟動主流程
 async def main():
     # 特殊地鼠 async 任務(因為少出現 非同步就夠了)
-    asyncio.create_task(special_mole_sender())
+    asyncio.create_task(special_mole_sender())  # 委派
+    
     # 一般地鼠 執行續 任務(同步)
     thread = threading.Thread(target=mole_sender_thread, daemon=True)
     thread.start()
 
      # 啟動中控註冊 & 狀態更新
     asyncio.create_task(register_to_control())
-
 
     # 啟動玩家連線伺服器
     server = await websockets.serve(player_handler, "0.0.0.0", 8001)

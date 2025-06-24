@@ -65,14 +65,15 @@ async def login_screen(screen):
 
                 client = await login_to_control(user_text, pass_text)
 
-                if client and client.server_list:
-                    ct.shared_client = client
-                    await client.connect_to_server()
+                if client and client.server_list: # 如果成功登入 且 server_list 為空(代表伺服器可以連)
+                    # ct.shared_client = client
+                    # client.server_url = client.server_list[0]["server_url"]  # 指定要連哪一台 GameServer 只能送server_url
+                    # await client.connect_to_server()  # 不要連
                     return client
                 else:
-                    message = "登入失敗，請確認帳號密碼或伺服器連線"
+                    message = "login ERROR"
             except Exception as e:
-                message = f"錯誤：{str(e)}"
+                message = f"ERROR：{str(e)}"
 
         # 顯示輸入框與提示文字
         label_user = gs.SMALL_FONT_SIZE.render("Username:", True, BLUE)

@@ -6,13 +6,16 @@ import GameServer.broadcaster as bc
 
 # 檢查是否可從 waiting 轉入 loading 階段
 async def check_start_waiting(now):
-    # print(f"[Debug] 目前 ready_players: {ct.ready_players}")
     if len(ct.ready_players) > 0 and ct.game_phase == "waiting" and not ct.post_gameover_cooldown:
+        # 當有玩家 ready，即進入 loading 階段
         ct.game_phase = "loading"
         ct.loading_start_time = now
+        ct.last_loading_broadcast = 0  # reset timer
+
         print(f"[GameServer] {len(ct.ready_players)} 名玩家按下 Ready，開始 loading 倒數 10 秒")
-        print("[GameServer] 已成功進入 loading 階段，準備廣播")
-        await bc.broadcast_loading_status()    # 呼叫 loading 狀態
+        await bc.broadcast_status_update()    # 呼叫 loading 狀態
+        ct.phase_changed_event.set()  # 觸發階段更動
+
 
 # 每秒由主迴圈呼叫：綜合處理 waiting 階段邏輯
 async def handle_waiting_phase(now):

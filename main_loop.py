@@ -8,9 +8,9 @@ import settings.game_settings as gs
 from UI.client import GameClient
 
 # 觀戰模式(未製作)
-def run_watch_mode(screen, client):
-    # 可用預設畫面或未來補上觀戰邏輯
+async def run_watch_mode(screen, client):
     print("[前端] 進入觀戰模式，目前暫不支援。")
+    await asyncio.sleep(0.5)
     return
 
 # loading (等待與加入)
@@ -26,33 +26,33 @@ def draw_loading_screen(screen, current_loading_time):
 # 處理退出遊戲
 def handle_quit():
     print("[前端] 玩家關閉視窗，離開遊戲。")
-    pg.quit()   # 主動呼叫 pg.quit()，不用靠最後一行
+    pg.quit()
     exit()
 
-def safely_close_client(client):
+async def safely_close_client(client):
     try:
         if client.ws_conn:
-            loop = client.ws_conn.loop  # 拿到 ws_conn 所屬的 loop
-            loop.call_soon_threadsafe(asyncio.create_task, client.ws_conn.close())
+            await client.ws_conn.close()
             print("[debug] 已要求關閉 client WebSocket")
     except Exception as e:
         print(f"[debug] 關閉 WebSocket 發生錯誤: {e}")
 
 
 # === 返回主大廳，保持 game 開啟 ===
-def handle_quit_to_lobby(screen, client):
-    safely_close_client(client)  # 改為同步呼叫
-    # --- 強制中斷與 GameServer 的連線（或重設）
-    # asyncio.run(safely_close_client(client))  # 確保連線被清掉
+async def handle_quit_to_lobby(screen, client):
+    await safely_close_client(client)
     client.ws_conn = None
-    client.ws_started = False  # 重設讓下一場可以再啟用 receiver
+    client.ws_started = False
     client.ready_offer_started = False
     client.ready_offer_joined_players = set()
+    client.game_state = "lobby"
+    client.ready_mode = "lobby"
 
-# 當前機台玩家人數
+
+# 當前機臺玩家人數
 def player_count(surface, current_players):
     players_surface = gs.FONT_SIZE.render(f"Players: {current_players}", True, (255, 255, 0))
-    players_rect = players_surface.get_rect(bottomright=(gs.WIDTH - 20, gs.HEIGHT - 20))  # 右下角
+    players_rect = players_surface.get_rect(bottomright=(gs.WIDTH - 20, gs.HEIGHT - 20))
     surface.blit(players_surface, players_rect)
 
 # 等待GameServer 狀態刷新
@@ -69,16 +69,13 @@ def wait_until_state_not_gameover(client, delay_ms = 100):
             print("[警告] 等待超過 20 秒仍為 gameover，強制跳出")
             break
 
-
-def run_game_loop(screen, client: GameClient):
-    pg.time.wait(200) # 稍等 0.2 秒
-
+# === 改為 async 主循環 ===
+async def run_game_loop(screen, client: GameClient):
+    await asyncio.sleep(0.2)
     clock = pg.time.Clock()
 
-    # === 避免直接進入 gameover 的保護邏輯 ===
-    wait_until_state_not_gameover(client)  # 等狀態進入下一局
+    wait_until_state_not_gameover(client)
 
-    # === 主迴圈 ===
     running = True
     while running:
         events = pg.event.get()
@@ -86,77 +83,59 @@ def run_game_loop(screen, client: GameClient):
             if event.type == pg.QUIT:
                 handle_quit()
 
-        state = client.sync_game_state()
-        # print(f"[MainLoop] 當前 game_state: {state.get('game_state')}")
+        with client.state_lock:
+            current_game_state = client.game_state
+            current_loading_time = client.loading_time
+            current_remaining_time = client.remaining_time
+            current_players = client.current_players
+            leaderboard_data = client.leaderboard_data
+            score = client.score
 
-        client.game_state = state.get("game_state", "unknown")
-        client.remaining_time = state.get("remaining_time", 0)
-        client.loading_time = state.get("loading_time", 0)
-        client.current_players = state.get("current_players", 0)
-        client.leaderboard_data = state.get("leaderboard_data", [])
-        client.score = state.get("score", 0)
-
-        # 再來用這些變數畫畫面
-        current_game_state = client.game_state
-        current_remaining_time = client.remaining_time
-        current_loading_time = client.loading_time
-        current_players = client.current_players
-        leaderboard_data = client.leaderboard_data
-        score = client.score
-
+        # print(f"[MainLoop] 遊戲狀態：{current_game_state}")
         screen.fill(gs.BLACK)
 
+        
         if current_game_state in ["waiting", "loading", "playing", "gameover"]:
-            # 顯示右下角該GameServer 人數
-            player_count(screen, current_players)
-
+            player_count(screen, current_players)   # 右下角當前 GameServer 人數
+        
         if current_game_state == "waiting":
-            # print("[MainLoop] 進入畫面：waiting")
-            ready_clicked = wait.draw_waiting_screen(screen, events, client)
-            if ready_clicked:
-                client.send_ready()
-            # ready_clicked = wait.draw_waiting_screen(screen, events, client)
-            # if ready_clicked:
-            #     asyncio.create_task(client.send_ready())
+            wait.draw_waiting_screen(screen, events, client)    # 等待畫面
 
         elif current_game_state == "loading":
-            # print("[MainLoop] 進入畫面：loading")
-            # 畫Loading
-            draw_loading_screen(screen, current_loading_time)
-        
+            draw_loading_screen(screen, current_loading_time)   # loading畫面
+
         elif current_game_state == "playing":
-            # print("[MainLoop] 進入畫面：playing")
-            # 畫地鼠
+            state = client.sync_game_state()
             pl.draw_playing_screen(screen, state, client)
-            # 打地鼠
             pl.handle_playing_events(state, client, score, handle_quit)
 
         elif current_game_state == "gameover":
             client.ready_mode = None
             while client.ready_mode is None:
-                # state = client.sync_game_state()
-                #  檢查遊戲狀態，如果已不再是 gameover，就中斷畫面
                 if client.game_state != "gameover":
                     print("[前端] 偵測到已離開 gameover 狀態，中止 gameover 畫面迴圈")
                     break
-        
-                ov.draw_gameover_screen(screen, handle_quit, client, handle_quit_to_lobby)
-                pg.display.flip()
-                pg.time.wait(100)  # 降低 CPU 負擔
-        
 
-            if client.ready_mode == "again":
+                result = ov.draw_gameover_screen(screen, handle_quit, client)
+                pg.display.flip()
+                await asyncio.sleep(0.1)
+
+            if result == "again":
                 return "again"
-            elif client.ready_mode == "watch":
+            elif result == "watch":
                 return "watch"
-            elif client.ready_mode == "lobby":
+            elif result == "lobby":
                 return "lobby"
-        
+            
+        elif current_game_state == "lobby":
+            print("[MainLoop] 玩家已返回 lobby，準備跳出遊戲迴圈")
+            return "lobby"
+
         else:
             print(f"[警告] 未知的 game_state: {current_game_state}")
-            
+
         pg.display.flip()
         clock.tick(60)
+        await asyncio.sleep(0)
 
     return "end"
-

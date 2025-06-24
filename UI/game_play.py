@@ -35,16 +35,18 @@ def draw_live_leaderboard(screen, leaderboard_data):
 def draw_score_popups(screen):
     popup_font = pg.font.SysFont(None, 36)
     for popup in gs.score_popups:
-        popup_surface = popup_font.render(popup["text"], True, (255, 215, 0))
-        popup_surface.set_alpha(popup["alpha"])
-        screen.blit(popup_surface, (50, popup["y_pos"]))
+        color = popup.get("color", (255, 215, 0))
+        popup_surface = popup_font.render(popup["text"], True, color)
+        popup_surface.set_alpha(popup["alpha"])             # 設定透明度
+        screen.blit(popup_surface, (50, popup["y_pos"]))    # 顯示畫面
 
     # 更新 popup 狀態
     for popup in gs.score_popups:
-        popup["y_pos"] -= 0.5
-        popup["alpha"] -= 0.5
-        popup["alpha"] = max(0, popup["alpha"])
+        popup["y_pos"] -= 0.5   # 向上移動
+        popup["alpha"] -= 0.5   # 逐漸透明
+        popup["alpha"] = max(0, popup["alpha"])     # 確保透明度不為負
 
+    # 清理掉已完全消失的飛字
     gs.score_popups[:] = [p for p in gs.score_popups if p["alpha"] > 0]
 
 # 繪製地鼠
@@ -83,7 +85,7 @@ def draw_moles(screen, state):
 last_click_time = 0
 click_cooldown = 0.3  # 每次打擊至少間隔 0.3 秒，避免連點送出
 
-# 處理打地鼠
+# 處理打地鼠判定
 def handle_playing_events(state, client, score, handle_quit):
     global last_click_time
 
@@ -117,7 +119,7 @@ def handle_playing_events(state, client, score, handle_quit):
 
                 if dist_sq <= 60 ** 2:
                     print(f"[前端] 命中一般地鼠 ID={current_mole_id} Score={current_mole_score}")
-                    asyncio.create_task(client.send_hit(current_mole_id, current_mole_score))
+                    asyncio.create_task(client.send_hit(current_mole_id))       # 只告訴後端打中哪隻地鼠
 
             # === 特殊地鼠判定 ===
             if special_mole_active and current_special_mole_position is not None:
@@ -127,17 +129,17 @@ def handle_playing_events(state, client, score, handle_quit):
                 if dist_sq <= 60 ** 2:
                     special_score = next((m["score"] for m in gs.MOLE_TYPES if m["name"] == current_special_mole_type_name), 0)
                     print(f"[前端] 命中特殊地鼠 ID={current_special_mole_id} Score={special_score}")
-                    asyncio.create_task(client.send_special_hit(current_special_mole_id, special_score))
+                    asyncio.create_task(client.send_special_hit(current_special_mole_id))
 
 
 def draw_playing_screen(screen, state, client):
     mouse_x, mouse_y = pg.mouse.get_pos()
     
-    draw_score(screen, client.score)                           # 分數顯示
-    draw_time(screen, state["remaining_time"])          # 倒數時間顯示
-    draw_live_leaderboard(screen, client.leaderboard_data)     # 即時排行榜
-    draw_moles(screen, state)                           # 普通/特殊地鼠顯示
-    draw_score_popups(screen)                           # 擊中地鼠的分數彈出動畫
+    draw_score(screen, client.score)                            # 分數顯示
+    draw_time(screen, state["remaining_time"])                  # 倒數時間顯示
+    draw_live_leaderboard(screen, client.leaderboard_data)      # 即時排行榜
+    draw_moles(screen, state)                                   # 普通/特殊地鼠顯示
+    draw_score_popups(screen)                                   # 擊中地鼠的分數彈出動畫
     
     # 顯示一般地鼠的打擊判定區（紅色）
     if state["mole_active"] and state["current_mole_position"] >= 0:
@@ -152,3 +154,4 @@ def draw_playing_screen(screen, state, client):
     # 顯示滑鼠當前位置（黃十字）
     pg.draw.line(screen, (255, 255, 0), (mouse_x - 10, mouse_y), (mouse_x + 10, mouse_y), 1)
     pg.draw.line(screen, (255, 255, 0), (mouse_x, mouse_y - 10), (mouse_x, mouse_y + 10), 1)
+    

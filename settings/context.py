@@ -17,14 +17,14 @@ leaderboard = {}                         # 玩家最高分字典 {username: scor
 current_scores = {}                      # 玩家當前當局分數
 
 # 遊戲計時
-loading_time = 10                        # loading 倒數秒數
+loading_time = 5                        # loading 倒數秒數
 loading_start_time = None          
 
 ready_offer_active = False              # 檢查 是否正在提供 ready 選項給玩家
 ready_players = set()                   # 當集合人數達標，啟動下一局
 observer_players = set()                 # 用來標記這些玩家不會餐與下一輪
 
-GAME_DURATION = 60                       # 遊戲時間 60s
+GAME_DURATION = 10                       # 遊戲時間 60s
 game_start_time = None                  
 gameover_start_time = None
 # 遊戲階段控制

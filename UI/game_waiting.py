@@ -1,6 +1,6 @@
 # game_waiting.py
 import pygame as pg
-import asyncio
+# import asyncio
 import settings.game_settings as gs
 
 def draw_waiting_screen(screen, events, client):
@@ -44,5 +44,6 @@ def draw_waiting_screen(screen, events, client):
             ready_clicked = True
             # asyncio.create_task(client.send_ready())
             client.send_ready()
+            print("[前端] Ready 已發送給後端")
     
     return ready_clicked

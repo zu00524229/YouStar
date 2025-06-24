@@ -5,31 +5,37 @@ import json
 import threading
 import time
 import settings.context as ct
+import settings.game_settings as gs
 
 
 class GameClient:
-    def __init__(self, username, password):
+    def __init__(self, username, password, loop):
+        if not loop:
+            raise ValueError("GameClient 建立時必須提供 asyncio event loop！")
+        self.loop = loop
+        # self.async_loop = loop
+
+
         self.username = username    # 玩家帳號名稱
         self.password = password    # 玩家密碼
-        # self.assigned_server = None 
+        # print(f"[Debug] 建立 GameClient 實體 ID: {id(self)}，帳號: {self.username}") # 要放後面 不然會error
         self.server_url = None      # 分配到的 GameServer WebSocket URL
-        self.ws_receiver_started = False
         self.server_list = []
         self.ws_conn = None         # 當前與 GameServer 保持連線 → 用來發 hit / 收事件
         
-        self.ready_offer_remaining_time = 0        # 剩餘倒數時間（伺服器提供
+        # self.ready_offer_remaining_time = 0      # 剩餘倒數時間（伺服器提供
         self.ready_offer_started = False           # 是否已進入 ready 倒數階段（避免重複點擊 Again）
         self.ready_offer_joined_players = set()    # 有點擊 Ready 的玩家名單（你可選擇顯示）
         self.ready_offer_total_players = 0
 
-        self.current_mole_duration = 1.2  # 或你預設的值
+        self.current_mole_duration = 1.2  # 
         self.current_mole_spawn_time = 0
 
         # 玩家選擇再玩 / 觀戰 / 回大廳的意圖
         self.ready_mode = None
 
-        self.ws_started = False
-        # self.offline_sent = False  # 防止重複通知 offline
+        # self.ws_receiver_started = False
+        self.ws_started = False         
 
         # 狀態 flag
         self.login_success = False   # 新增：是否已登入成功
@@ -39,47 +45,51 @@ class GameClient:
         self.current_mole_position = -1
         self.current_mole_type_name = ""
         self.mole_active = False
-
+        self.current_mole_score = 0
 
         # 特殊地鼠同步資料
         self.current_special_mole_id = -1
         self.current_special_mole_position = -1
         self.current_special_mole_type_name = ""
         self.special_mole_active = False
-
-        self.async_loop = asyncio.get_event_loop()
+        self.current_special_mole_score = 0
+        
 
         # 遊戲整體狀態
         self.game_state = "waiting"
-        self.remaining_time = 10
-        self.loading_time = 0
-        self.score = 0
-        self.current_players = 0
+        self.remaining_time = 10        # 遊戲剩餘時間
+        self.loading_time = 0           # 遊戲等待時間
+        self.score = 0                  # 遊戲分數
+        self.current_players = 0        # 當前伺服器人數
 
         # 排行榜資料
-        self.leaderboard_data = []
+        self.leaderboard_data = []      
         self.state_lock = threading.Lock()
 
-    # 畫面邏輯
+    # 變數
     def sync_game_state(self):
         with self.state_lock:
             return {
-                "current_players": self.current_players,
-                "game_state": self.game_state,
-                "remaining_time": self.remaining_time,
-                "loading_time": self.loading_time,
-                "current_mole_id": self.current_mole_id,
-                "current_mole_position": self.current_mole_position,
-                "current_mole_type_name": self.current_mole_type_name,
-                "mole_active": self.mole_active,
-                "current_special_mole_position": self.current_special_mole_position,
-                "current_special_mole_type_name": self.current_special_mole_type_name,
-                "special_mole_active": self.special_mole_active,
-                "leaderboard_data": self.leaderboard_data,
-                "score": self.score,
-                "ready_offer_remaining_time": self.ready_offer_remaining_time,
-                "ready_offer_joined_players": self.ready_offer_joined_players,
-                "ready_offer_total_players": self.ready_offer_total_players,
+                "current_players": self.current_players,            # 當前伺服器人數
+                "game_state": self.game_state,                      # 伺服器狀態
+                "remaining_time": self.remaining_time,              # 遊戲剩餘時間
+                "loading_time": self.loading_time,                  # 遊戲等待時間
+                "leaderboard_data": self.leaderboard_data,              # 排行榜
+
+                "current_mole_id": self.current_mole_id,                # 地鼠唯一 id
+                "current_mole_position": self.current_mole_position,    # 地鼠位置
+                "current_mole_type_name": self.current_mole_type_name,  # 地鼠名稱
+                "current_mole_score": self.current_mole_score,          # 地鼠分數
+                "mole_active": self.mole_active,                        # 地鼠是否有效
+
+                "current_special_mole_position": self.current_special_mole_position,    # 特殊地鼠位置
+                "current_special_mole_type_name": self.current_special_mole_type_name,  # 特殊地鼠是否有效
+                "current_special_mole_score": self.current_special_mole_score,          # 特殊地鼠分數
+                "special_mole_active": self.special_mole_active,        # 是否有效
+                "score": self.score,            # 分數
+                # "ready_offer_remaining_time": self.ready_offer_remaining_time,
+                # "ready_offer_joined_players": self.ready_offer_joined_players,
+                # "ready_offer_total_players": self.ready_offer_total_players,
                 "current_mole_duration": self.current_mole_duration,
                 "current_mole_spawn_time": self.current_mole_spawn_time,
                 "current_mole_score": self.current_mole_score,
@@ -95,7 +105,6 @@ class GameClient:
             print(f"[前端] get_server_list 錯誤: {e}")
             return []
 
-
     async def _get_server_list_async(self, server_list):
         async with websockets.connect(ct.CONTROL_SERVER_WS) as ws:
             await ws.send(json.dumps({
@@ -107,44 +116,79 @@ class GameClient:
             if data.get("type") == "get_server_list_response":
                 server_list.extend(data.get("server_list", []))
 
-    # 
+    # 建立 GameServer 的 WebSocket 連線 + 啟動接收機制任務   
+    async def connect_to_server(self):
+        if not self.server_url:
+            print("[前端] server_url 尚未設定，無法連線 GameServer")
+            return
+
+        try:
+            # === 若已有連線，先安全關閉 ===
+            if self.ws_conn and not self.ws_conn.closed:
+                print("[前端] 發現已有舊 ws_conn → 嘗試關閉")
+                await self.ws_conn.close()
+                self.ws_conn = None
+                self.ws_started = False
+
+            # 建立 websockets 連線至 GameServer 
+            self.ws_conn = await websockets.connect(self.server_url)
+            print(f"[前端] 成功連線 GameServer：{self.server_url}")
+                        
+            # 傳送玩家姓名給 Gameserver 做註冊(登入)
+            await self.ws_conn.send(str(self.username))  # 文字安全轉換
+
+            # 負責監聽後端所有訊息（地鼠、狀態更新、排行等）
+            asyncio.create_task(self.ws_receiver_async())  # 啟動接收 loo (用 create_task() 跑背景）
+            self.ws_started = True
+
+        except Exception as e:
+            print(f"[前端] 連線 GameServer 失敗: {e}")
+
+    # 接收 GameServer 廣播來的訊息 (背景持續接收地鼠、排行榜與遊戲狀態更新，用於及時同步畫面)
     async def ws_receiver_async(self):
         try:
-            # 先建立連線
-            websocket_mole = await websockets.connect(
-                self.server_url,
-                origin="http://localhost"
-            )
-            self.ws_conn = websocket_mole
-            print(f"[前端] ws_receiver 啟動中，使用連線 ID: {id(websocket_mole)}")
+            websocket_mole = self.ws_conn  # 使用現有連線，不再重新連線
+
+            print(f"[前端] ws_receiver 啟動中，使用連線 web ID: {id(websocket_mole)}")
             print("[前端] WebSocket 連線 GameServer 成功")
 
             # 傳送登入資訊
-            await websocket_mole.send(self.username)
+            # await websocket_mole.send(self.username)
 
-            # 開始接收訊息
+            # 接收 GameServer 發來的訊息
             async for msg in websocket_mole:
                 try:
                     data = json.loads(msg)
 
-                    # ========== mole_update ==========
+                    # ----------  地鼠事件 ----------
                     if data.get("event") == "mole_update":
                         print(f"[前端] 收到地鼠：{data['mole']}")
                         with self.state_lock:
                             if self.game_state == "playing":
                                 mole = data["mole"]
+                                # 當地鼠ID不符時，將前一隻地鼠標記為失效，防止重複顯示
                                 if mole["mole_id"] != self.current_mole_id:
                                     print(f"[前端] 新地鼠 ID: {mole['mole_id']} → 前一隻為 {self.current_mole_id}")
-                                    self.mole_active = False
+                                    self.mole_active = False    # 停止前一隻顯示
                                 self.current_mole_id = mole["mole_id"]
                                 self.current_mole_position = mole["position"]
                                 self.current_mole_type_name = mole["mole_type"]
-                                self.current_mole_score = mole.get("score", 0)
+                                self.current_mole_score = mole.get("score", 0)          # 地鼠本身價值(分數)
                                 self.mole_active = mole["active"]
                                 self.current_mole_duration = mole.get("duration", 1.2)
                                 self.current_mole_spawn_time = mole.get("spawn_time", time.time())
 
-                    # ========== special_mole_update ==========
+                                # 如果地鼠被標記為失效，將其從畫面中隱藏
+                                if not mole["active"]:
+                                    self.mole_active = False
+
+                    # ---------- 接收後端地鼠得分更新 ---------
+                    elif data.get("event") == "score_update":
+                        # with self.state_lock:
+                        self.score = data.get("score", 0)
+                        print(f"[前端] 分數更新：{self.score}")
+                    
+                    # ----------  特殊地鼠事件 ----------
                     elif data.get("event") == "special_mole_update":
                         print(f"[前端] 收到特殊地鼠：{data['mole']}")
                         with self.state_lock:
@@ -155,25 +199,35 @@ class GameClient:
                                 self.current_special_mole_id = mole["mole_id"]
                                 self.current_special_mole_position = mole["position"]
                                 self.current_special_mole_type_name = mole["mole_type"]
-                                self.current_special_mole_score = mole.get("score", 0)
+                                self.current_special_mole_score = mole.get("score", 0)  # 地鼠本身價值(分數)
                                 self.special_mole_active = mole["active"]
 
-                    # ========== leaderboard_update ==========
-                    elif data.get("event") == "leaderboard_update":
+                    # 當收到後端的得分更新（分數提示）時顯示飛字
+                    elif data.get("event") == "score_popup":
+                        print("[前端] 收到 score_popup 飛字事件！")
+                        score = data.get("score", 0)
+                        mole_id = data.get("mole_id")
+                        mole_name = data.get("mole_name", "Mole")
+                        print(f"[前端] 飛字提示：{mole_name} +{score}")
+                        # 顯示飛字
+                        self.show_score_popup(score, mole_id, mole_name)
+
+                    # ----------  遊戲結束排行榜 ----------
+                    elif data.get("event") == "final_leaderboard":
+                        print("[前端] 收到最終排行榜資料")
                         with self.state_lock:
                             self.final_leaderboard_data = data.get("leaderboard", [])
-                        try:
-                            async with websockets.connect(ct.CONTROL_SERVER_WS) as ws_offline:
-                                await ws_offline.send(json.dumps({
-                                    "type": "offline",
-                                    "username": self.username
-                                }))
-                        except Exception as e:
-                            print(f"[前端] 通知 ControlServer 玩家 {self.username} offline 失敗: {e}")
 
-                    # ========== status_update ==========
+                    # ------- 遊戲結束後 ready 按鈕事件 -----
+                    elif data["event"] == "ready_offer":
+                        print("[前端] 收到 ready_offer 廣播")
+                        self.ready_offer_started = True
+
+                    # ----------  遊戲狀態更新 ----------
                     elif data.get("event") == "status_update":
+                        # print(f"[前端] 收到 status_update：{data}")
                         game_phase = data.get("game_phase", "waiting")
+                        # print(f"[前端] 接收到 status_update, game_phase = {game_phase}")
                         with self.state_lock:
                             self.loading_time = data.get("loading_time", 0)
                             self.remaining_time = data.get("remaining_time", 0)
@@ -181,74 +235,96 @@ class GameClient:
                             self.leaderboard = data.get("leaderboard", [])
                             if self.leaderboard:
                                 self.leaderboard_data = self.leaderboard
-                                print("[前端] 接收到即時 leaderboard 資料：", self.leaderboard)
+                                # print("[前端] 接收到即時 leaderboard 資料：", self.leaderboard)
                             self.game_state = game_phase
+                            # print(f"[前端] 更新 client.game_state = {self.game_state}")
 
-                            if game_phase == "playing":
-                                print("[前端][Status WS] GameServer 已進入遊戲，開始 playing")
-                            elif game_phase == "gameover":
-                                print("[前端][Status WS] GameServer 進入 gameover phase")
-                            elif game_phase == "waiting":
-                                print("[前端][Status WS] GameServer 等待中，進入 waiting")
-                            elif game_phase == "loading":
-                                print("[前端][Status WS] GameServer 進入 loading")
-
-                    # ========== ready_offer_update ==========
-                    elif data.get("event") == "ready_offer_update":
-                        remaining_time = data.get("remaining_time", 0)
-                        joined_usernames = data.get("joined_usernames", [])
-                        total_players = data.get("total_players", 0)
-                        with self.state_lock:
-                            self.ready_offer_remaining_time = remaining_time
-                            self.ready_offer_joined_players = set(joined_usernames)
-                            self.ready_offer_total_players = total_players
-                            self.ready_offer_started = True
-                        print(f"[前端] ready Offer 倒數 {remaining_time}s，已加入：{joined_usernames} / 全部：{total_players}")
-
-                    elif data.get("event") == "ready_end":
-                        with self.state_lock:
-                            self.ready_offer_started = False
-                            self.ready_offer_remaining_time = 0
-                            self.ready_offer_joined_players.clear()
-                        print("[前端] 收到 ready_end，重置 ready 狀態")
+                            # # 顯示遊戲階段提示
+                            # if game_phase == "playing":
+                            #     print("[前端][Status WS] GameServer 已進入遊戲，開始 playing")
+                            # elif game_phase == "gameover":
+                            #     print("[前端][Status WS] GameServer 進入 gameover phase")
+                            # elif game_phase == "waiting":
+                            #     print("[前端][Status WS] GameServer 等待中，進入 waiting")
+                            # elif game_phase == "loading":
+                            #     print("[前端][Status WS] GameServer 進入 loading")
 
                 except Exception as e:
                     print(f"[前端] 收到非 json 訊息: {msg}, error: {e}")
 
+        # ---------- 連線錯誤與斷線處理 ----------
         except websockets.exceptions.ConnectionClosed:
-            print("[前端] WebSocket 斷線")
+            print("[前端] WebSocket 斷線，考慮觸發自動重連？")
             self.ws_conn = None
             self.ws_started = False  # 讓系統可以重啟 ws_receiver
-
+            if self.ws_conn:
+                try:
+                    asyncio.create_task(self.ws_conn.send(f"logout:{self.username}"))
+                    print(f"[前端] 通知 GameServer 玩家 {self.username} 已斷線")
+                except Exception as e:
+                    print(f"[前端] 通知斷線時失敗：{e}")
         except Exception as e:
             print(f"[前端] WebSocket 錯誤: {e}")
             self.ws_conn = None
             self.ws_started = False
 
-    async def connect_to_server(self):
-        if not self.server_url:
-            print("[前端] server_url 尚未設定，無法連線 GameServer")
-            return
 
-        try:
-            self.ws_conn = await websockets.connect(self.server_url)
-            print(f"[前端] 成功連線 GameServer：{self.server_url}")
-            await self.ws_conn.send(self.username)
-            asyncio.create_task(self.ws_receiver_async())  # 啟動接收 loop
-        except Exception as e:
-            print(f"[前端] 連線 GameServer 失敗: {e}")
-
-    # lobby 大廳伺服器判斷
+    # 啟動接收 GameServer 訊息監聽
+    # 檢查是否已啟動 ws_receiver，避免重複啟動
     async def start_ws_receiver(self):
+        # 確保 server_url 格式正確（前面已透過大廳點擊設定）
+        assert isinstance(self.server_url, str), "server_url 應為字串！"
+
+        # 若 ws_receiver 已啟動過，避免重複啟動
         if self.ws_started:
             print("[前端] ws_receiver 已啟動，略過重複啟動")
             return
+        
+        # 若否則用 create_task() 非同步背景啟動
+        asyncio.create_task(self.ws_receiver_with_reconnect())
+
+        # 記錄已啟動 + 印出訊息
         self.ws_started = True
         ct.ws_receiver_start_count += 1
         print(f"[Debug] 第 {ct.ws_receiver_start_count} 次啟動 ws_receiver")
 
-        # 背景執行 ws_receiver，包含自動重連邏輯
-        asyncio.create_task(self.ws_receiver_with_reconnect())
+
+
+
+    # ---------- Ready 模式控制 ----------
+    def reset_ready_offer(self):
+        self.ready_offer = None
+        self.ready_offer_remaining_time = 0
+        self.joined_ready = False
+
+    def send_post_game_again(self):
+        if self.ws_conn:
+            asyncio.create_task(self.ws_conn.send(f"post_game_again:{self.username}"))
+            print(f"[Client] 發送 post_game_again:{self.username}")
+
+
+    # ---------- Lobby 切換與連線重置 ----------
+    def disconnect_from_server(self):
+        # 關閉與 GameServer 的 WebSocket
+        try:
+            if self.ws_conn:
+                loop = self.ws_conn.loop
+                loop.call_soon_threadsafe(asyncio.create_task, self.ws_conn.close())
+                print("[Client] 已要求關閉 WebSocket 連線")
+        except Exception as e:
+            print(f"[Client] 關閉 WebSocket 發生錯誤: {e}")
+        finally:
+            self.ws_conn = None
+            self.ws_started = False
+
+        # 清空狀態
+        self.game_state = "lobby"
+        self.current_mole_id = -1
+        self.ready_offer = None
+        self.joined_ready = False
+        self.leaderboard_data = []
+        print("[Client] 已斷開與 GameServer 的連線並重設狀態")
+
 
 
     def quick_login_check(self):
@@ -268,47 +344,54 @@ class GameClient:
         except:
             return False
 
-    # 傳送一般地鼠打擊事件
-    async def send_hit(self, mole_id, score):
-        if self.ws_conn and not self.ws_conn.closed:
-            msg = f"hit:{mole_id}:{score}"
+    # ready 按鈕 送出事件給 gameserver
+    def send_ready(self):
+        async def _send():
+            print("[Debug] send_ready() 被呼叫（內層 async）")
             try:
+                msg = "ready"
+                # 嘗試使用 open 屬性判斷是否連線中（新版本支持）
+                if not getattr(self.ws_conn, "open", True):  # fallback 為 True，保險
+                    print("[Debug] ws_conn 未開啟，無法送出 ready")
+                    return
+                
+                is_open = getattr(self.ws_conn, "open", None)
+                print(f"[Debug] ws_conn = {self.ws_conn}, open = {is_open if is_open is not None else '未知或不支援'}")
+
+                # print(f"[Debug] ws_conn = {self.ws_conn}, open = {getattr(self.ws_conn, 'open', '未知')}")
                 await self.ws_conn.send(msg)
+                print(f"[Debug] client.send_ready()：已送出訊息 {msg}")
+            except Exception as e:
+                print(f"[Debug] client.send_ready() 發送錯誤：{e}")
+
+        # self.async_loop.create_task(_send())
+        # asyncio.run_coroutine_threadsafe(_send(), self.loop)
+        self.loop.call_soon_threadsafe(lambda: asyncio.create_task(_send()))
+        print("[Debug] create_task 已被呼叫")
+
+    # 傳送一般地鼠打擊事件給後端 GameServerD
+    async def send_hit(self, mole_id):
+        if self.ws_conn:
+            msg = f"hit:{mole_id}"              # 只送打擊判定D
+            try:
+                await self.ws_conn.send(msg)    # 透過 await
                 print(f"[前端] 已送出 hit：{msg}")
             except Exception as e:
                 print(f"[前端] 發送 hit 失敗: {e}")
         else:
             print("[前端] ws_conn 無效或已關閉，無法發送 hit")
 
-    # 傳送特殊地鼠打擊事件
-    async def send_special_hit(self, mole_id, score):
-        if self.ws_conn and not self.ws_conn.closed:
-            msg = f"special_hit:{mole_id}:{score}"
+    # 傳送特殊地鼠打擊事件給後端 GameServer
+    async def send_special_hit(self, mole_id):
+        if self.ws_conn:
+            msg = f"special_hit:{mole_id}"      # 只送打擊判定
             try:
-                await self.ws_conn.send(msg)
+                await self.ws_conn.send(msg)    # 透過 await
                 print(f"[前端] 已送出 special_hit：{msg}")
             except Exception as e:
                 print(f"[前端] 發送 special_hit 失敗: {e}")
         else:
             print("[前端] ws_conn 無效或已關閉，無法發送 special_hit")
-
-    def send_ready(self):
-        async def _send():
-            try:
-                msg = "ready"
-                print(f"[Debug] client.send_ready()：嘗試送出訊息 {msg}")
-                await self.ws_conn.send(msg)
-                print(f"[Debug] client.send_ready()：已送出訊息 {msg}")
-            except Exception as e:
-                print(f"[Debug] client.send_ready() 發送錯誤：{e}")
-
-        threading.Thread(target=lambda: asyncio.run(_send()), daemon=True).start()
-
-        # 用 thread 強制啟動 coroutine
-        # def run_async():
-        #     asyncio.run(_send())
-
-        # threading.Thread(target=run_async).start()
 
 
     # 自動重連包裝器
@@ -331,3 +414,24 @@ class GameClient:
 
         if retry_count >= max_retries:
             print("[前端] 接收器多次失敗，放棄重連")
+
+
+        # === 新增同步封裝方法（提供 threading 版本用） ===
+
+    # 飛字提示器
+    def show_score_popup(self, score, mole_id, mole_name):
+        if score != 0:
+            if mole_id not in [popup["mole_id"] for popup in gs.score_popups]:
+                popup_text = f"{mole_name} {'+' if score > 0 else ''}{score}"
+
+                # 查找對應地鼠顏色
+                color = next((m["color"] for m in gs.MOLE_TYPES if m["name"] == mole_name), (255, 215, 0))
+
+                popup = {
+                    "text": popup_text,
+                    "y_pos": gs.HEIGHT - 120,
+                    "alpha": 255,
+                    "mole_id": mole_id,
+                    "color": color  # 加上這行，給前端用來畫字色
+                }
+                gs.score_popups.append(popup)

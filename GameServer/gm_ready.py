@@ -2,19 +2,39 @@
 import time
 import settings.context as ct
 import GameServer.broadcaster as bc
-import GameServer.gm_loading as load
 
+# 開始遊戲
 async def handle_ready(username):
-    now = time.time()
-
-    # 註冊 ready 狀態
-    ct.ready_offer_active = True
+    # 玩家點擊 Ready 時呼叫
     if not hasattr(ct, "ready_players") or not isinstance(ct.ready_players, set):
         ct.ready_players = set()
+    
+    ct.ready_offer_active = True
+    ct.ready_players.add (username)
+    print(f"[GameServer] 玩家 {username} 已加入 ready，目前 ready 玩家: {ct.ready_players}")
+
+# 啟動 loading 階段，不需要等待其他玩家，直接開始倒數
+    if ct.game_phase == "waiting":
+        ct.game_phase = "loading"
+        ct.loading_start_time = time.time()
+        ct.last_loading_broadcast = 0  # reset timer
+        print("[GameServer] 已進入 loading 階段，開始倒數 10 秒")
+        await bc.broadcast_status_update()  # 廣播 loading 狀態
+        ct.phase_changed_event.set()  # 觸發階段更動
+    # 不再設定 loading_start_time，不直接切 phase
+
+
+# 遊戲結束 : 發起 ready_offer 廣播
+async def handle_ready_offer(username):
+    if not hasattr(ct, "ready_players") or not isinstance(ct.ready_players, set):
+        ct.ready_players = set()
+    
+    if ct.ready_offer_active:
+        print(f"[GameServer] 已在 ready_offer 階段，忽略 {username} 的重複請求")
+        return  # 阻止重複發起廣播
+    
+    ct.ready_offer_active = True
     ct.ready_players.add(username)
-    ct.loading_start_time = now
 
-    print(f"[GameServer] 玩家 {username} 已加入 ready，檢查是否要進入 loading 階段")
-
-    # 嘗試進入 loading 階段（→ 若 ready 玩家足夠）
-    await load.check_start_loading(now)
+    print(f"[GameServer] 玩家 {username} 發起 ready_offer，已加入 ready_players")
+    await bc.broadcast_ready_offer()

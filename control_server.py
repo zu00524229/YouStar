@@ -36,7 +36,6 @@ async def handle_client(websocket):
             msg = await websocket.recv()
             data = json.loads(msg)
 
-
             # 玩家登入請求
             if data.get("type") == "login":
                 username = data["username"]
@@ -72,11 +71,11 @@ async def handle_client(websocket):
 
                 gameserver_status[server_url] = {
                     "connected": True,
-                    "current_players": 0,
-                    "max_players": 3,
-                    "in_game": False,
-                    "remaining_time": 0,
-                    "leaderboard": [],
+                    "current_players": 0,       # 當前伺服器人數
+                    "max_players": 3,           # gameserver 最大人數
+                    "in_game": False,           # 是否在遊戲中
+                    "remaining_time": 0,        # 遊戲時間
+                    "leaderboard": [],          # 排行榜
                     "last_heartbeat": time.time(),
                     "game_phase": "waiting"
                 }
@@ -117,6 +116,13 @@ async def handle_client(websocket):
                     "server_list": server_list
                 }))
 
+            # 玩家加入通知
+            elif data.get("type") == "player_joined":
+                username = data["username"]
+                server_url = data["server_url"]
+                player_online_status[username] = server_url
+                print(f"[Player Join] 玩家 {username} 加入 → {server_url}")
+
             # 玩家離線通知
             elif data.get("type") == "offline":
                 username = data["username"]
@@ -136,13 +142,6 @@ async def handle_client(websocket):
                         "reason": "玩家不在在線狀態表中"
                     }))
 
-            # 玩家加入通知
-            elif data.get("type") == "player_joined":
-                username = data["username"]
-                server_url = data["server_url"]
-                player_online_status[username] = server_url
-                print(f"[Player Join] 玩家 {username} 加入 → {server_url}")
-
             # 排行榜請求
             elif data.get("type") == "get_leaderboard":
                 gameserver_url = data["gameserver_url"]
@@ -158,7 +157,7 @@ async def handle_client(websocket):
                         "error": "GameServer 未找到"
                     }))
             
-            # Heartbeat 或狀態更新
+            # Heartbeat 或狀態更新 (GameServer 狀態)
             elif data.get("type") == "ping":
                 server_url = None
                 for url, status in gameserver_status.items():

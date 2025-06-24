@@ -5,6 +5,7 @@ import json
 import settings.context as ct
 import GameServer.broadcaster as bc
 
+# 
 async def handle_playing_phase():
     now = time.time()
 
@@ -30,7 +31,7 @@ async def handle_playing_phase():
         print("[GameServer] 遊戲結束，進入 gameover")
         ct.game_phase = "gameover"
         ct.gameover_start_time = now
-        await bc.broadcast_leaderboard()         # 廣播排行榜
+        # await bc.broadcast_leaderboard()         
         await bc.broadcast_status_update()       # 廣播 gameover 狀態
         print("[GameServer] leaderboard_update 已廣播")
         return
@@ -42,9 +43,9 @@ async def handle_playing_phase():
 
 # --- 重置為 waiting 的共用方法 ---
 def reset_to_waiting():
-    ct.game_phase = "waiting"
-    ct.loading_start_time = None
-    ct.game_start_time = None
+    ct.game_phase = "waiting"               # 預設  waiting 狀態
+    ct.loading_start_time = None            # 等待時間 預設空值
+    ct.game_start_time = None               
     ct.gameover_start_time = None
     ct.skip_next_status_update = False
     ct.post_gameover_cooldown = True
