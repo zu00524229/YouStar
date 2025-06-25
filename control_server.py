@@ -63,39 +63,48 @@ async def handle_client(websocket):
                         "reason": "帳號或密碼錯誤"
                     }))
 
-            # GameServer 註冊流程（這台會進入自己的 loop）
+            # --- GameServer 註冊流程 ---
             elif data.get("type") == "register_gameserver":
                 server_url = data["server_url"]
-                websocket_identity_map[websocket] = f"GameServer:{server_url}"      # 識別"誰" 從 "哪台"GameServer" 斷線
+
+                # 建立辨識表：記住這個 websocket 是哪一台 GameServer
+                websocket_identity_map[websocket] = f"GameServer:{server_url}"
                 print(f"[Register] GameServer 註冊: {server_url}")
 
+                # 初始化該 GameServer 的狀態資訊（只做一次）
                 gameserver_status[server_url] = {
-                    "connected": True,
-                    "current_players": 0,       # 當前伺服器人數
-                    "max_players": 3,           # gameserver 最大人數
-                    "in_game": False,           # 是否在遊戲中
-                    "remaining_time": 0,        # 遊戲時間
-                    "leaderboard": [],          # 排行榜
-                    "last_heartbeat": time.time(),
-                    "game_phase": "waiting"
+                    "connected": True,              # 表示這台伺服器已連上
+                    "current_players": 0,           # 初始人數為 0
+                    "watching_players": 0,          # 觀看初始人數為 0
+                    "max_players": 3,               # 預設最大人數（可日後擴充）
+                    # "in_game": False,             # 已淘汰欄位，改用 game_phase 判斷
+                    "remaining_time": 0,            # 初始剩餘時間為 0（尚未開始遊戲）
+                    "leaderboard": [],              # 初始排行榜為空
+                    "last_heartbeat": time.time(),  # 記錄註冊時間（後續可用來偵測斷線）
+                    "game_phase": "waiting"         # 初始階段為 waiting（等待中）
                 }
 
+                # 顯示目前所有已註冊的 GameServer 清單
                 print(f"[Register] 目前在線 GameServer 有 {len(gameserver_status)} 台:")
                 for url in gameserver_status:
                     print(f"    - {url}")
 
-            # 伺服器狀態更新
+            # --- GameServer 狀態更新（每秒回報）---
             elif data.get("type") == "update_status":
                 server_url = data.get("server_url")
+
+                # 若該 server_url 有註冊過，就更新它的狀態
                 if server_url in gameserver_status:
                     gameserver_status[server_url].update({
-                        "current_players": data.get("current_players", 0),
-                        "leaderboard": data.get("leaderboard", []),
-                        "remaining_time": data.get("remaining_time", 0),
-                        "in_game": data.get("in_game", False),
-                        "game_phase": data.get("game_phase", "waiting"),
-                        "last_heartbeat": time.time()
+                        "current_players": data.get("current_players", 0),   # 更新目前人數
+                        "watching_players": data.get("watching_players", 0),
+                        "leaderboard": data.get("leaderboard", []),          # 更新排行榜
+                        "remaining_time": data.get("remaining_time", 0),     # 更新剩餘遊戲時間
+                        # "in_game": data.get("in_game", False),               # 這欄其實可移除（你已經不需要了）
+                        "game_phase": data.get("game_phase", "waiting"),     # 更新目前遊戲階段
+                        "last_heartbeat": time.time()                        # 更新心跳時間
                     })
+                    print(f"[中控] 更新 GameServer {server_url}：players = {data.get('current_players')}, watching = {data.get('watching_players')}")
 
             # 玩家請求 GameServer 列表
             elif data.get("type") == "get_server_list":
@@ -105,10 +114,11 @@ async def handle_client(websocket):
                 for server_url, status in gameserver_status.items():
                     if status["connected"]:
                         server_list.append({
-                            "server_url": server_url,
-                            "current_players": status["current_players"],
-                            "max_players": status["max_players"],
-                            "game_phase": status.get("game_phase", "waiting")
+                            "server_url": server_url,       # 伺服器
+                            "current_players": status["current_players"],       # 人數
+                            "max_players": status["max_players"],               # 最大人數
+                            "game_phase": status.get("game_phase", "waiting"),   # 狀態
+                            "watching_players": status.get("watching_players", 0)
                         })
 
                 await websocket.send(json.dumps({

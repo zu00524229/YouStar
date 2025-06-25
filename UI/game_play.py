@@ -88,6 +88,11 @@ click_cooldown = 0.2  # 每次打擊至少間隔 0.2 秒，避免連點送出
 # 處理打地鼠判定
 def handle_playing_events(state, client, score, handle_quit):
     global last_click_time
+        
+    # 如果是觀戰模式 直接return
+    if client.is_watching:
+        return
+
 
     mole_active = state.get("mole_active")
     special_mole_active = state.get("special_mole_active")

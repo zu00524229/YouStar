@@ -34,6 +34,9 @@ class GameClient:
         # 玩家選擇再玩 / 觀戰 / 回大廳的意圖
         self.ready_mode = None
 
+        # 觀戰模式
+        self.is_watching = False
+
         # self.ws_receiver_started = False
         self.ws_started = False         
 
@@ -61,6 +64,7 @@ class GameClient:
         self.loading_time = 0           # 遊戲等待時間
         self.score = 0                  # 遊戲分數
         self.current_players = 0        # 當前伺服器人數
+        self.watching_players = 0       # 當前觀戰人數
 
         # 排行榜資料
         self.leaderboard_data = []      
@@ -71,6 +75,7 @@ class GameClient:
         with self.state_lock:
             return {
                 "current_players": self.current_players,              # 當前伺服器人數
+                "watching_players": self.watching_players,            # 當前觀戰人數
                 "game_state": self.game_state,                        # 遊戲狀態（waiting / loading / playing / gameover 等）
                 "remaining_time": self.remaining_time,                # 遊戲剩餘時間（playing 階段）
                 "loading_time": self.loading_time,                    # 等待倒數時間（loading 階段）
@@ -134,7 +139,17 @@ class GameClient:
             print(f"[前端] 成功連線 GameServer：{self.server_url}")
                         
             # 傳送玩家姓名給 Gameserver 做註冊(登入)
-            await self.ws_conn.send(str(self.username))  # 文字安全轉換
+            # await self.ws_conn.send(str(self.username))  # 文字安全轉換
+
+            # === 發送觀戰或玩家登入訊息 ===
+            if self.ws_conn:
+                if self.is_watching:
+                    await self.ws_conn.send("watch")
+                    print("[client.py] 發送 watch 給 GameServer")
+                else:
+                    await self.ws_conn.send(str(self.username))
+                    print("[client.py] 發送 username 給 GameServer")
+
 
             # 負責監聽後端所有訊息（地鼠、狀態更新、排行等）
             asyncio.create_task(self.ws_receiver_async())  # 啟動接收 loo (用 create_task() 跑背景）
@@ -180,13 +195,7 @@ class GameClient:
                                 # 如果地鼠被標記為失效，將其從畫面中隱藏
                                 if not mole["active"]:
                                     self.mole_active = False
-
-                    # ---------- 接收後端地鼠得分更新 ---------
-                    elif data.get("event") == "score_update":
-                        # with self.state_lock:
-                        self.score = data.get("score", 0)
-                        print(f"[前端] 分數更新：{self.score}")
-                    
+         
                     # ----------  特殊地鼠事件 ----------
                     elif data.get("event") == "special_mole_update":
                         print(f"[前端] 收到特殊地鼠：{data['mole']}")
@@ -201,15 +210,28 @@ class GameClient:
                                 self.current_special_mole_score = mole.get("score", 0)  # 地鼠本身價值(分數)
                                 self.special_mole_active = mole["active"]
 
+                    # ---------- 接收後端地鼠得分更新 ---------
+                    elif data.get("event") == "score_update":
+                        score_username = data.get("username")
+                        score = data.get("score", 0)
+                        if score_username == self.username:
+                            self.score = score
+                            print(f"[前端] 自己分數更新：{score}")
+                        else:
+                            print(f"[前端] 收到其他玩家 {score_username} 的分數更新（忽略）")
+                        
+
                     # 當收到後端的得分更新（分數提示）時顯示飛字
                     elif data.get("event") == "score_popup":
                         print("[前端] 收到 score_popup 飛字事件！")
                         score = data.get("score", 0)
                         mole_id = data.get("mole_id")
                         mole_name = data.get("mole_name", "Mole")
+                        hit_user = data.get("username")
                         print(f"[前端] 飛字提示：{mole_name} +{score}")
-                        # 顯示飛字
-                        self.show_score_popup(score, mole_id, mole_name)
+                        if hit_user == self.username:   # 只顯示個人
+                            print(f"[前端] 飛字提示：{mole_name} +{score}")
+                            self.show_score_popup(score, mole_id, mole_name)
 
                     # ----------  遊戲結束排行榜 ----------
                     elif data.get("event") == "final_leaderboard":
@@ -231,6 +253,7 @@ class GameClient:
                             self.loading_time = data.get("loading_time", 0)
                             self.remaining_time = data.get("remaining_time", 0)
                             self.current_players = data.get("current_players", 0)
+                            self.watching_players = data.get("watching_players", 0)     # 觀戰
                             self.leaderboard = data.get("leaderboard", [])
                             if self.game_state != "playing" and game_phase == "playing":
                                 print("[Client] 狀態切換為 playing，清空 score_popups")
@@ -291,9 +314,7 @@ class GameClient:
         print(f"[Debug] 第 {ct.ws_receiver_start_count} 次啟動 ws_receiver")
 
 
-
-
-    # ---------- Ready 模式控制 ----------
+    # ---------- 遊戲前 Ready 模式控制 ----------
     def reset_ready_offer(self):
         self.ready_offer = None
         self.ready_offer_remaining_time = 0
@@ -437,3 +458,12 @@ class GameClient:
                     "color": color  # 加上這行，給前端用來畫字色
                 }
                 gs.score_popups.append(popup)
+
+    # 觀戰模式
+    async def send_watch(self, server_url):
+        self.server_url = server_url
+        self.is_watching = True
+        await self.connect_to_server()
+        # if self.is_watching and self.ws_conn:
+        #     await self.ws_conn.send("watch")
+        

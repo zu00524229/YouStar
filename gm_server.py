@@ -7,6 +7,7 @@ import random
 # import math
 import threading
 import settings.context as ct
+from GameServer.gm_utils import get_remaining_time
 import GameServer.broadcaster as bc
 from GameServer.mole_thread import mole_sender_thread
 from GameServer.player_handler import player_handler
@@ -30,6 +31,8 @@ async def register_to_control():
 
                 # 改為 background task → run_status_loop → 狀態更新 & heartbeat
                 asyncio.create_task(run_status_loop(ws))
+                # 傳送伺服器狀態給 中控 (背景工作)
+                asyncio.create_task(send_update_status(ws))
 
                 # 保持 websocket 連線
                 while True:
@@ -38,6 +41,25 @@ async def register_to_control():
         except Exception as e:
             print(f"[GameServer] 中控連線失敗或斷線，3 秒後重試: {e}")
             await asyncio.sleep(3)
+
+async def send_update_status(ws):
+    print("[Debug] send_update_status() 啟動")
+    while True:
+        try:
+            print(f"[Debug] 傳送中控狀態：{ct.game_phase}, {len(ct.connected_players)}人")
+            await ws.send(json.dumps({
+                "type": "update_status",
+                "server_url": ct.MY_GAME_SERVER_WS,
+                "current_players": len(ct.connected_players - ct.watch_players),
+                "watching_players": len(ct.watch_players),         # 當前觀戰人數
+                "leaderboard": ct.leaderboard,
+                "remaining_time":  get_remaining_time(),
+                "game_phase": ct.game_phase
+            }))
+        except Exception as e:
+            print(f"[GameServer] 傳送 update_status 失敗：{e}")
+        await asyncio.sleep(1)
+
 
 # ---------------------------------------------------
 # (核心)遊戲主控循環:控制 game_phase 狀態機 + 發 status_update 

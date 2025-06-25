@@ -56,13 +56,14 @@ async def main():
         elif result == "again":
             continue
 
-        # watch 目前尚未 async 化，若未來需要 WebSocket 操作，應改為 await
-        elif result == "watch":
-            lp.run_watch_mode(screen, client)
-
         elif result == "lobby":
             await lp.handle_quit_to_lobby(screen, client)
             continue    # 回到 while result == "lobby"，重新選擇伺服器
+
+        # 觀戰
+        elif result == "watch":
+            await client.send_watch()  
+            return "watch"
 
         # 結束流程
         elif result == "quit":

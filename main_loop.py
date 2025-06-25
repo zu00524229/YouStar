@@ -7,12 +7,6 @@ import UI.game_waiting as wait
 import settings.game_settings as gs
 from UI.client import GameClient
 
-# 觀戰模式(未製作)
-async def run_watch_mode(screen, client):
-    print("[前端] 進入觀戰模式，目前暫不支援。")
-    await asyncio.sleep(0.5)
-    return
-
 # loading (等待與加入)
 def draw_loading_screen(screen, current_loading_time):
     loading_surface = gs.FONT_SIZE.render(f"Loading..{current_loading_time} s", True, gs.WHITE)
@@ -55,6 +49,12 @@ def player_count(surface, current_players):
     players_rect = players_surface.get_rect(bottomright=(gs.WIDTH - 20, gs.HEIGHT - 20))
     surface.blit(players_surface, players_rect)
 
+# 當前觀戰人數
+def watching_count(surface, watching_players):
+    watch_surface = gs.FONT_SIZE.render(f"Watching: {watching_players}", True, (0, 255, 255))  # 青藍色
+    watch_rect = watch_surface.get_rect(bottomleft=(20, gs.HEIGHT - 20))  # 左下角
+    surface.blit(watch_surface, watch_rect)
+
 # 等待GameServer 狀態刷新
 def wait_until_state_not_gameover(client, delay_ms = 100):
     attempts = 0
@@ -88,6 +88,7 @@ async def run_game_loop(screen, client: GameClient):
             current_loading_time = client.loading_time
             current_remaining_time = client.remaining_time
             current_players = client.current_players
+            watching_players = client.watching_players      # 觀戰人數
             leaderboard_data = client.leaderboard_data
             score = client.score
 
@@ -97,6 +98,7 @@ async def run_game_loop(screen, client: GameClient):
         
         if current_game_state in ["waiting", "loading", "playing", "gameover"]:
             player_count(screen, current_players)   # 右下角當前 GameServer 人數
+            watching_count(screen, watching_players)     # 左下角顯示 Watching
         
         if current_game_state == "waiting":
             wait.draw_waiting_screen(screen, events, client)    # 等待畫面
@@ -107,7 +109,9 @@ async def run_game_loop(screen, client: GameClient):
         elif current_game_state == "playing":
             state = client.sync_game_state()
             pl.draw_playing_screen(screen, state, client)
-            pl.handle_playing_events(state, client, score, handle_quit)
+
+            if not client.is_watching:   # 如果是觀戰模式不觸發地鼠打擊
+                pl.handle_playing_events(state, client, score, handle_quit)
 
         elif current_game_state in ["gameover", "post_gameover"]:
             client.ready_mode = None

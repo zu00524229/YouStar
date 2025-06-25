@@ -25,13 +25,22 @@ def render_server_status_ui(surface, server, box_y, mouse_x, mouse_y, index):
         "loading": "Loading",
         "ready": "Ready",
         "playing": "Playing",
-        "gameover": "Game Over"
+        "gameover": "Game Over",
+        "post_gameover": "Post GameOver"
     }
     status_text = f"({server['current_players']}/{server['max_players']})   Status: {phase_map.get(server['game_phase'], server['game_phase'])}"
     status_surface = pg.font.SysFont(None, 32).render(status_text, True, (200, 200, 200))
     surface.blit(status_surface, (box_x + 20, box_y + 45))
 
-    return box_rect
+    # 觀戰按鈕
+    watch_button_rect = None
+    if server["game_phase"] in ["playing", "gameover", "post_gameover"]:
+        watching_players = server.get("watching_players", 0)
+        watch_button_rect = draw_watch_button(surface, box_x + 480, box_y + 20, mouse_x, mouse_y, watching_players)
+
+    # 回傳畫面區域 + 按鈕
+    return box_rect, watch_button_rect
+
 
 def draw_lobby_title_and_hint(surface):
     title_surface = gs.BIG_FONT_SIZE.render("Game Lobby", True, gs.WHITE)
@@ -39,3 +48,25 @@ def draw_lobby_title_and_hint(surface):
 
     hint_surface = pg.font.SysFont(None, 28).render("Click to join. Press R to refresh.", True, (150, 150, 150))
     surface.blit(hint_surface, hint_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT - 50)))
+
+
+
+# 觀戰按鈕UI
+def draw_watch_button(surface, x, y, mouse_x, mouse_y, watching_players=0):
+    button_rect = pg.Rect(x, y, 100, 30)
+    is_hovered = button_rect.collidepoint(mouse_x, mouse_y)
+
+    color = (180, 180, 255) if is_hovered else (100, 100, 255)
+    pg.draw.rect(surface, color, button_rect, border_radius=5)
+
+    font = pg.font.SysFont(None, 24)
+    text_surface = font.render("Watch", True, (255, 255, 255))
+    surface.blit(text_surface, text_surface.get_rect(center=button_rect.center))
+
+    # 顯示觀戰人數在按鈕右側
+    if watching_players > 0:
+        watch_count_surface = font.render(f"{watching_players}", True, (0, 255, 255))
+        watch_count_rect = watch_count_surface.get_rect(midleft=(button_rect.right + 8, button_rect.centery))
+        surface.blit(watch_count_surface, watch_count_rect)
+
+    return button_rect

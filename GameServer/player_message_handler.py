@@ -53,7 +53,8 @@ async def handle_hit(msg, username):
         "score": player_score,
         "mole_id": mole_id,
         "mole_name": ct.current_mole.get("mole_type", ""),
-        "mole_color": ct.current_mole.get("color", (255, 255, 255))
+        "mole_color": ct.current_mole.get("color", (255, 255, 255)),
+        "username": username
     })
 
     # 廣播分數更新事件並通知前端分數顯示
@@ -66,7 +67,6 @@ async def handle_hit(msg, username):
     # 廣播目前地鼠狀態與遊戲狀態更新
     await bc.broadcast({"event": "mole_update", "mole": ct.current_mole})
     await asyncio.sleep(0.3)
-    # await bc.broadcast_status_update()
 
 async def handle_special_hit(msg, username):
     parts = msg.split(":")

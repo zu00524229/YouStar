@@ -2,6 +2,7 @@
 import pygame as pg
 import settings.game_settings as gs
 import asyncio
+import time
 from UI.game_lobby import render_server_status_ui, draw_lobby_title_and_hint
 
 
@@ -9,72 +10,71 @@ from UI.game_lobby import render_server_status_ui, draw_lobby_title_and_hint
 async def handle_server_selection(event, server_buttons, client):
     mouse_x, mouse_y = event.pos
 
-    # 檢查點到的是哪一台伺服器
-    for rect, url in server_buttons:
-        if rect.collidepoint(mouse_x, mouse_y):
-            # print(f"[Lobby] 玩家選擇連線到 GameServer: {url}")
-            # print(f"[Debug] 點擊連線時拿到的 url = {url}, 類型 = {type(url)}")
-            # print(f"[Debug] 當前 client.username 是：{client.username}，型別為：{type(client.username)}")
-            client.server_url = url
-
+    for box_rect, watch_button_rect, url in server_buttons:
+        if box_rect.collidepoint(mouse_x, mouse_y):
             print(f"[Lobby] 玩家選擇連線到 GameServer: {url}")
-            await client.connect_to_server()    # 呼叫 client 方法 選擇指定的 GameServer 連線
-            await client.start_ws_receiver()    # 呼叫 client 方法 判斷是否可連線
+            client.server_url = url
+            await client.connect_to_server()
+            await client.start_ws_receiver()
             print(f"[Lobby] 玩家點選 GameServer，呼叫 start_ws_receiver()，client ID: {id(client)}")
-
-            # 初始同步一次狀態
             client.sync_game_state()
 
-            # 加入這段等待
-            if client.game_state in ["gameover", "post_gameover"]:
-                print("[Lobby] 伺服器處於 gameover/post_gameover 狀態，等待回到 waiting")
-                while client.game_state in ["gameover", "post_gameover"]:
-                    await asyncio.sleep(0.2)
-                    client.sync_game_state()
+            
+            # 只允許在 waiting/loading 狀態下加入遊戲，否則自動觀戰
+            if client.game_state in ["waiting", "loading"]:
+                print(f"[Lobby] 成功連線至 {url}，伺服器處於 {client.game_state}，加入遊戲")
+                return "play"
+            else:
+                print(f"[Lobby] 伺服器處於 {client.game_state} 階段，將自動切換為觀戰模式")
+                client.is_watching = True
+                return "play"
 
-            return "play"    # 告知主畫面可以切換到遊戲畫面
+        # 觀戰
+        elif watch_button_rect and watch_button_rect.collidepoint(mouse_x, mouse_y):
+            print(f"[Lobby] 玩家選擇觀戰 GameServer: {url}")
+            client.server_url = url
+            await client.send_watch(url)        # 呼叫Client 觀戰方法
+            await client.start_ws_receiver()    # 呼叫GameServer 訊息監聽 (防重複點擊
+            client.sync_game_state()            # 初始化狀態
+            return "play"
 
-# 顯示 GameServer 清單的 lobby 畫面主迴圈
+
 async def show_lobby(screen, client, handle_quit):
     print("[Debug] show_lobby() 被呼叫")
     pg.display.set_caption("Whack Legends")
     lobby_running = True
 
-    # 取得可用伺服器清單（來自中控 ControlServer）
     server_list = await client.get_server_list()
-
+    last_refresh_time = time.time()
     while lobby_running:
-        screen.fill(gs.BLACK)       # 清空畫面
-        server_buttons = []         # 儲存每個 server 對應的框與 URL
+        screen.fill(gs.BLACK)
+        server_buttons = []
         mouse_x, mouse_y = pg.mouse.get_pos()
 
-       # 畫出大廳標題與提示文字
+        if time.time() - last_refresh_time > 1.0:
+            server_list = await client.get_server_list()
+            last_refresh_time = time.time()
+
         draw_lobby_title_and_hint(screen)
 
-        # 遍歷每個 GameServer，畫出狀態方框
         for i, server in enumerate(server_list):
-            # print(f"[Debug] server = {server}")
-            # 取得位置並畫出伺服器資訊 UI，回傳框的位置
-            box_rect = render_server_status_ui(screen, server, 150 + i * 100, mouse_x, mouse_y, i)
-            server_buttons.append((box_rect, server["server_url"]))
+            box_rect, watch_button_rect = render_server_status_ui(
+                screen, server, 150 + i * 100, mouse_x, mouse_y, i
+            )
+            server_buttons.append((box_rect, watch_button_rect, server["server_url"]))
 
-        # 處理玩家的鍵盤 / 滑鼠事件
         for event in pg.event.get():
             if event.type == pg.QUIT:
-                handle_quit()   # 玩家按下關閉視窗 → 呼叫外部 handle_quit 結束程式
+                handle_quit()
 
             elif event.type == pg.KEYDOWN and event.key == pg.K_r:
-                # 玩家按下 R 鍵 → 重新取得 server 清單
                 print("[Lobby] 玩家按下 R，重新取得 server list")
                 server_list = await client.get_server_list()
 
             elif event.type == pg.MOUSEBUTTONDOWN:
-                # print("[Debug] Mouse click detected!")
-                # 玩家點擊其中一台 GameServer
                 result = await handle_server_selection(event, server_buttons, client)
                 if result == "play":
-                    return "play"   # 切換到遊戲畫面主流程
+                    return "play"
 
-        # 更新畫面並維持 30 FPS
         pg.display.flip()
         pg.time.Clock().tick(30)

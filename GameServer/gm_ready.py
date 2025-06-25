@@ -24,17 +24,17 @@ async def handle_ready(username):
     # 不再設定 loading_start_time，不直接切 phase
 
 
-# 遊戲結束 : 發起 ready_offer 廣播
-async def handle_ready_offer(username):
-    if not hasattr(ct, "ready_players") or not isinstance(ct.ready_players, set):
-        ct.ready_players = set()
+# # 遊戲結束 : 發起 ready_offer 廣播
+# async def handle_ready_offer(username):
+#     if not hasattr(ct, "ready_players") or not isinstance(ct.ready_players, set):
+#         ct.ready_players = set()
     
-    if ct.ready_offer_active:
-        print(f"[GameServer] 已在 ready_offer 階段，忽略 {username} 的重複請求")
-        return  # 阻止重複發起廣播
+#     if ct.ready_offer_active:
+#         print(f"[GameServer] 已在 ready_offer 階段，忽略 {username} 的重複請求")
+#         return  # 阻止重複發起廣播
     
-    ct.ready_offer_active = True
-    ct.ready_players.add(username)
+#     ct.ready_offer_active = True
+#     ct.ready_players.add(username)
 
-    print(f"[GameServer] 玩家 {username} 發起 ready_offer，已加入 ready_players")
-    await bc.broadcast_ready_offer()
+#     print(f"[GameServer] 玩家 {username} 發起 ready_offer，已加入 ready_players")
+#     await bc.broadcast_ready_offer()

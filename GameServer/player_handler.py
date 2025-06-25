@@ -66,7 +66,8 @@ async def player_handler(websocket):
             "game_phase": ct.game_phase,
             "remaining_time": 0,
             "loading_time": 0,
-            "current_players": len(ct.connected_players),
+            "current_players": len(ct.connected_players - ct.watch_players),  # 排除觀戰者
+            "watching_players": len(ct.watch_players),                        # 觀戰者
             "leaderboard": sorted(leaderboard_list, key=lambda x: x["score"], reverse=True)
         }
 
@@ -98,7 +99,7 @@ async def player_handler(websocket):
                 elif msg.startswith("final:"):
                     await pmh.handle_final_score(msg)
 
-                # 遊戲結束後:發起人按鈕 Again 邀請
+                # 遊戲開始前 Ready 邀請
                 elif msg.startswith("ready_offer:"):
                     sender = msg.split(":")[1]
                     if not ct.ready_offer_active:
@@ -107,12 +108,18 @@ async def player_handler(websocket):
                     else:
                         print(f"[GameServer] 忽略 {sender} 的重複 ready_offer，已在等待階段中")
 
+                # 玩家觀戰模式（新增）
+                elif msg == "watch":
+                    ct.watch_players.add(username)
+                    print(f"[GameServer] 玩家 {username} 設為觀戰者，目前觀戰人數：{len(ct.watch_players)}")
+
                 # 玩家回應廣播選擇 參與 ready 階段 (加入)
                 elif msg == "join_ready":
                     print(f"[GameServer] 玩家 {username} 加入 ready 隊列")
                     if not hasattr(ct, 'ready_players') or not isinstance(ct.ready_players, set):
                         ct.ready_players = set()
                     ct.ready_players.add(username)
+
 
                 # 遊戲結束後 : 選擇 lobby / Again
                 elif msg.startswith("post_game_again:"):
@@ -142,6 +149,7 @@ async def player_handler(websocket):
         if username:
             ct.connected_players.discard(username)
             ct.player_websockets.pop(username, None)
+            ct.watch_players.discard(username)
             await notify_control_player_offline(username)
             print(f"[GameServer] 玩家 {username} 離線並清除狀態")
             print(f"[GameServer] 目前在線玩家: {ct.connected_players}")

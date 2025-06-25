@@ -37,7 +37,8 @@ async def broadcast_status_update():
         "game_phase": ct.game_phase,                       # 遊戲階段（waiting / loading / playing / gameover）
         "remaining_time": remaining_game_time,             # 遊戲剩餘秒數（只有在 playing 階段有效）
         "loading_time": loading_time_left,                 # loading 階段倒數秒數（其餘階段為 0）
-        "current_players": len(ct.connected_players),      # 當前已連線玩家數
+        "current_players": len(ct.connected_players - ct.watch_players),   # 當前已連線玩家數
+        "watching_players": len(ct.watch_players),         # 當前觀戰人數
         "leaderboard": sorted(                             # 排行榜（依分數高低排序）
             leaderboard_list,
             key=lambda x: x["score"],

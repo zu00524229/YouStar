@@ -15,6 +15,7 @@ phase_changed_event = asyncio.Event()    # 等待進入 playing → mole_sender 
 connected_players = set()                # 目前在線玩家 username 集合
 leaderboard = {}                         # 玩家最高分字典 {username: score}
 current_scores = {}                      # 玩家當前當局分數
+watch_players = set()                    # 觀戰玩家 集合
 
 # 遊戲計時
 loading_time = 10                        # loading 倒數秒數
@@ -24,7 +25,7 @@ ready_offer_active = False              # 檢查 是否正在提供 ready 選項
 ready_players = set()                   # 當集合人數達標，啟動下一局
 observer_players = set()                 # 用來標記這些玩家不會餐與下一輪
 
-GAME_DURATION = 10                       # 遊戲時間 60s
+GAME_DURATION = 30                       # 遊戲時間 60s
 game_start_time = None                  
 gameover_start_time = None
 
