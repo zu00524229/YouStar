@@ -45,14 +45,12 @@ async def broadcast_status_update():
         ),
     }
     # 除錯：顯示即將廣播的狀態內容
-    print("[Debug] 廣播狀態：", status_update)
-    await asyncio.sleep(3)
+    # print("[Debug] 廣播狀態：", status_update)
+    # await asyncio.sleep(1)
     
     # 廣播給所有已連線玩家
     await broadcast(status_update)
     
-    # 印出成功紀錄
-    # print(f"[Broadcast] 已廣播 status_update：phase = {ct.game_phase}")
 
 # 廣播任意訊息給所有玩家
 async def broadcast(message_dict):
@@ -60,7 +58,7 @@ async def broadcast(message_dict):
     tasks = []
     for player, ws in ct.player_websockets.items():
         tasks.append(_safe_send(player, ws, msg))
-    await asyncio.gather(*tasks, return_exceptions=True)
+    await asyncio.gather(*tasks, return_exceptions=True)    # 用gather 防阻塞
 
 # 單一玩家安全發送（失敗時記錄錯誤）
 async def _safe_send(player, ws_conn, msg):

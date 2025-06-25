@@ -69,7 +69,7 @@ def wait_until_state_not_gameover(client, delay_ms = 100):
             print("[警告] 等待超過 20 秒仍為 gameover，強制跳出")
             break
 
-# === 改為 async 主循環 ===
+# === 遊戲 async 主循環 ===
 async def run_game_loop(screen, client: GameClient):
     await asyncio.sleep(0.2)
     clock = pg.time.Clock()
@@ -109,10 +109,10 @@ async def run_game_loop(screen, client: GameClient):
             pl.draw_playing_screen(screen, state, client)
             pl.handle_playing_events(state, client, score, handle_quit)
 
-        elif current_game_state == "gameover":
+        elif current_game_state in ["gameover", "post_gameover"]:
             client.ready_mode = None
             while client.ready_mode is None:
-                if client.game_state != "gameover":
+                if client.game_state not in ["gameover", "post_gameover"]:
                     print("[前端] 偵測到已離開 gameover 狀態，中止 gameover 畫面迴圈")
                     break
 

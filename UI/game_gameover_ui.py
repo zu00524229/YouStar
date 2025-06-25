@@ -2,12 +2,13 @@ import pygame as pg
 import settings.game_settings as gs
 
 def draw_gameover_screen(screen, handle_quit, client):
-    if client.game_state != "gameover":
-        print("[前端] 已進入非 gameover 狀態，跳出畫面")
+    if client.game_state not in ["gameover", "post_gameover"]:
+        print("[前端] 已進入非 gameover/post_gameover 狀態，跳出畫面")
         return
 
-    if client.game_state == "gameover" and not client.ready_offer_started:
+    if client.game_state in ["gameover", "post_gameover"] and not client.ready_offer_started:
         client.reset_ready_offer()
+
 
     # 畫面標題
     leaderboard_surface = gs.BIG_FONT_SIZE.render("Leaderboard", True, gs.WHITE)

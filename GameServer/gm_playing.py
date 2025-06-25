@@ -2,6 +2,7 @@
 
 import time
 import json
+import asyncio
 import settings.context as ct
 import GameServer.broadcaster as bc
 
@@ -36,11 +37,6 @@ async def handle_playing_phase():
         print("[GameServer] leaderboard_update 已廣播")
         return
 
-    # --- 3. 每秒廣播剩餘時間狀態 ---
-    if not hasattr(ct, "last_playing_broadcast") or now - ct.last_playing_broadcast >= 1:
-        ct.last_playing_broadcast = now
-        await bc.broadcast_status_update()
-
 # --- 重置為 waiting 的共用方法 ---
 def reset_to_waiting():
     ct.game_phase = "waiting"               # 預設  waiting 狀態
@@ -53,4 +49,13 @@ def reset_to_waiting():
     ct.leaderboard.clear()
     ct.ready_players.clear()
     print("[GameServer] 所有狀態重設完成 → 等待下一局")
+
+
+# 每秒廣播剩餘時間（只在 playing 階段）
+async def broadcast_playing_timer_loop():
+    while True:
+        if ct.game_phase == "playing":
+            await bc.broadcast_status_update()
+        await asyncio.sleep(1)
+
 

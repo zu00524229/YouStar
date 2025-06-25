@@ -66,44 +66,37 @@ async def run_status_loop(ws):
                 print(f"[GameServer-{loop_id}] 傳送 ping 給中控失敗: {e}")
 
 
-
             # --- waiting -- 玩家進入遊戲、觸發進入 loading 階段
             if ct.game_phase == "waiting":
-                print(f"[Debug] game_phase={ct.game_phase}, ready_offer_active={ct.ready_offer_active}, loading_start_time={ct.loading_start_time}")
+                # print(f"[Debug] game_phase={ct.game_phase}, ready_offer_active={ct.ready_offer_active}, loading_start_time={ct.loading_start_time}")
                 await wait.check_start_waiting(now)
                 if ct.ready_offer_active and ct.loading_start_time is not None:
                     await wait.handle_ready_offer(now)
 
             # --- loading -- 倒數完轉為 playing
-            if ct.game_phase == "loading":
+            elif ct.game_phase == "loading":
                 print("[Debug] run_status_loop 檢測到 loading，呼叫 handle_loading_phase()")
                 await load.handle_loading_phase()
                 print("[Debug]  handle_loading_phase() 被呼叫進來了")
 
             # --- playing -- 管理玩家離線與結束倒數
-            if ct.game_phase == "playing":
+            elif ct.game_phase == "playing":
                 await play.handle_playing_phase()
 
             # --- gameover -- 倒數完轉換(等待玩家是否下局或觀戰)
-            if ct.game_phase == "gameover":
+            elif ct.game_phase == "gameover":
                 await over.handle_gameover_phase()
 
-            # --- post_gameover -- 清除階段狀態並進入 waiting
-            if ct.skip_next_status_update:
+            # --- post_gameover -- 等待玩家操作，若無人在線則自動重設
+            elif ct.game_phase == "post_gameover":
+                if len(ct.connected_players) == 0:
+                    print(f"[GameServer-{loop_id}] 無玩家在線，自動從 post_gameover reset → waiting")
+                    await over.reset_game_to_waiting()
+
+            elif ct.skip_next_status_update:
                 await over.handle_post_gameover_transition()
                 continue
-        
-            # --- waiting & ready_offer 的情況 -- 
-            if ct.game_phase == "waiting" and ct.ready_offer_active:
-                if ct.loading_start_time is not None:
-                    await wait.handle_ready_offer(now)
-                else:
-                    print("[GameServer] loading_start_time 是 None，略過 handle_ready_offer")
-            
 
-            await bc.broadcast_status_update()      # 使用通用 status_update 廣播器
-
-            # await ws.send(json.dumps({"type": "ping"}))
             await asyncio.sleep(1)
 
     except Exception as e:
@@ -121,8 +114,10 @@ async def main():
     thread = threading.Thread(target=mole_sender_thread, daemon=True)
     thread.start()
 
-     # 啟動中控註冊 & 狀態更新
+    # 啟動中控註冊 & 狀態更新
     asyncio.create_task(register_to_control())
+    # 每秒廣播剩餘時間（只在 playing 階段）
+    asyncio.create_task(play.broadcast_playing_timer_loop())
 
     # 啟動玩家連線伺服器
     server = await websockets.serve(player_handler, "0.0.0.0", 8001)

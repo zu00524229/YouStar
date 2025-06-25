@@ -66,35 +66,34 @@ class GameClient:
         self.leaderboard_data = []      
         self.state_lock = threading.Lock()
 
-    # 變數
+    # 回傳前端畫面需要同步的遊戲狀態（顯示地鼠、分數、倒數時間等）
     def sync_game_state(self):
         with self.state_lock:
             return {
-                "current_players": self.current_players,            # 當前伺服器人數
-                "game_state": self.game_state,                      # 伺服器狀態
-                "remaining_time": self.remaining_time,              # 遊戲剩餘時間
-                "loading_time": self.loading_time,                  # 遊戲等待時間
-                "leaderboard_data": self.leaderboard_data,              # 排行榜
+                "current_players": self.current_players,              # 當前伺服器人數
+                "game_state": self.game_state,                        # 遊戲狀態（waiting / loading / playing / gameover 等）
+                "remaining_time": self.remaining_time,                # 遊戲剩餘時間（playing 階段）
+                "loading_time": self.loading_time,                    # 等待倒數時間（loading 階段）
+                "leaderboard_data": self.leaderboard_data,            # 排行榜資料（遊戲結束後顯示）
 
-                "current_mole_id": self.current_mole_id,                # 地鼠唯一 id
-                "current_mole_position": self.current_mole_position,    # 地鼠位置
-                "current_mole_type_name": self.current_mole_type_name,  # 地鼠名稱
-                "current_mole_score": self.current_mole_score,          # 地鼠分數
-                "mole_active": self.mole_active,                        # 地鼠是否有效
+                # 一般地鼠資料
+                "current_mole_id": self.current_mole_id,              # 地鼠唯一 ID，用於避免重複得分
+                "current_mole_position": self.current_mole_position,  # 地鼠位置（0~11）
+                "current_mole_type_name": self.current_mole_type_name,# 地鼠種類名稱（對應顏色與分數）
+                "current_mole_score": self.current_mole_score,        # 該地鼠被打中時的得分
+                "mole_active": self.mole_active,                      # 地鼠是否還有效（是否能得分）
 
-                "current_special_mole_position": self.current_special_mole_position,    # 特殊地鼠位置
-                "current_special_mole_type_name": self.current_special_mole_type_name,  # 特殊地鼠是否有效
-                "current_special_mole_score": self.current_special_mole_score,          # 特殊地鼠分數
-                "special_mole_active": self.special_mole_active,        # 是否有效
-                "score": self.score,            # 分數
-                # "ready_offer_remaining_time": self.ready_offer_remaining_time,
-                # "ready_offer_joined_players": self.ready_offer_joined_players,
-                # "ready_offer_total_players": self.ready_offer_total_players,
-                "current_mole_duration": self.current_mole_duration,
-                "current_mole_spawn_time": self.current_mole_spawn_time,
-                "current_mole_score": self.current_mole_score,
-                "current_special_mole_score": getattr(self, "current_special_mole_score", 0),
+                # 特殊地鼠資料（例如：鑽石地鼠）
+                "current_special_mole_position": self.current_special_mole_position,   # 特殊地鼠位置
+                "current_special_mole_type_name": self.current_special_mole_type_name, # 特殊地鼠名稱
+                "current_special_mole_score": self.current_special_mole_score,         # 特殊地鼠分數
+                "special_mole_active": self.special_mole_active,       # 特殊地鼠是否有效
+
+                "score": self.score,                                   # 玩家當前分數（僅給自己看用）
+                "current_mole_duration": self.current_mole_duration,   # 地鼠出現的持續時間
+                "current_mole_spawn_time": self.current_mole_spawn_time, # 地鼠出現時間戳，用於同步飛字消失時間
             }
+
 
     async def get_server_list(self):
         try:
@@ -233,6 +232,9 @@ class GameClient:
                             self.remaining_time = data.get("remaining_time", 0)
                             self.current_players = data.get("current_players", 0)
                             self.leaderboard = data.get("leaderboard", [])
+                            if self.game_state != "playing" and game_phase == "playing":
+                                print("[Client] 狀態切換為 playing，清空 score_popups")
+                                gs.score_popups.clear() # 清除上局飛字殘留
                             if self.leaderboard:
                                 self.leaderboard_data = self.leaderboard
                                 # print("[前端] 接收到即時 leaderboard 資料：", self.leaderboard)

@@ -83,7 +83,7 @@ def draw_moles(screen, state):
 
 # 點擊冷卻控制
 last_click_time = 0
-click_cooldown = 0.3  # 每次打擊至少間隔 0.3 秒，避免連點送出
+click_cooldown = 0.2  # 每次打擊至少間隔 0.2 秒，避免連點送出
 
 # 處理打地鼠判定
 def handle_playing_events(state, client, score, handle_quit):

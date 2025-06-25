@@ -63,11 +63,10 @@ async def handle_hit(msg, username):
         "score": ct.current_scores[username]  # 更新後的分數
     })
 
-
     # 廣播目前地鼠狀態與遊戲狀態更新
     await bc.broadcast({"event": "mole_update", "mole": ct.current_mole})
-    await asyncio.sleep(0.5)
-    await bc.broadcast_status_update()
+    await asyncio.sleep(0.3)
+    # await bc.broadcast_status_update()
 
 async def handle_special_hit(msg, username):
     parts = msg.split(":")

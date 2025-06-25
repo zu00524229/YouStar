@@ -128,7 +128,7 @@ async def player_handler(websocket):
                         ct.ready_players.add(username)
 
                     # 如果所有人都準備好了，就重新開始
-                    if ct.game_phase == "gameover" and ct.ready_players.issuperset(ct.connected_players):
+                    if ct.game_phase == "post_gameover" and ct.ready_players.issuperset(ct.connected_players):
                         await gov.reset_game_to_waiting()
 
                 

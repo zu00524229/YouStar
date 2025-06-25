@@ -19,7 +19,7 @@ def show_start_screen(screen):
     screen.fill(gs.BLACK)
     font = pg.font.SysFont("Arial", 48)
     title = font.render("Whack Legends", True, (255, 255, 255))
-    screen.blit(title, (gs.WIDTH // 2 - 140, gs.HEIGHT // 2 - 50))
+    screen.blit(title, (gs.WIDTH // 2 - 120, gs.HEIGHT // 2 - 50))
     pg.display.flip()
     pg.time.wait(1000)  # 這是同步暫停，不影響 async，因為在主程式前就執行完
 

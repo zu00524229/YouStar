@@ -1,6 +1,7 @@
 # lobby_controller.py : 控制大廳邏輯整合
 import pygame as pg
 import settings.game_settings as gs
+import asyncio
 from UI.game_lobby import render_server_status_ui, draw_lobby_title_and_hint
 
 
@@ -17,15 +18,19 @@ async def handle_server_selection(event, server_buttons, client):
             client.server_url = url
 
             print(f"[Lobby] 玩家選擇連線到 GameServer: {url}")
-            await client.connect_to_server()    # 呼叫 client 的方法 選擇指定的 GameServer 連線
+            await client.connect_to_server()    # 呼叫 client 方法 選擇指定的 GameServer 連線
             await client.start_ws_receiver()    # 呼叫 client 方法 判斷是否可連線
             print(f"[Lobby] 玩家點選 GameServer，呼叫 start_ws_receiver()，client ID: {id(client)}")
 
-            # 呼叫前端狀態同步方法（例如取得遊戲階段等
-            if hasattr(client, "sync_game_state") and callable(client.sync_game_state):
-                result = client.sync_game_state()
-                if hasattr(result, "__await__"):
-                    await result
+            # 初始同步一次狀態
+            client.sync_game_state()
+
+            # 加入這段等待
+            if client.game_state in ["gameover", "post_gameover"]:
+                print("[Lobby] 伺服器處於 gameover/post_gameover 狀態，等待回到 waiting")
+                while client.game_state in ["gameover", "post_gameover"]:
+                    await asyncio.sleep(0.2)
+                    client.sync_game_state()
 
             return "play"    # 告知主畫面可以切換到遊戲畫面
 
