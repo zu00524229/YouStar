@@ -144,14 +144,15 @@ def handle_playing_events(events, state, client, score, handle_quit):
                     special_score = next((m["score"] for m in gs.SPMOLE_TYPES if m["name"] == current_special_mole_type_name), 0)
                     print(f"[前端] 命中特殊地鼠 ID={current_special_mole_id} Score={special_score}")
 
-                state.setdefault("hit_effects", []).append({
-                    "type": "special",
-                    "position": current_special_mole_position,
-                    "start_time": time.time()
-                })
+                    state.setdefault("hit_effects", []).append({
+                        "type": "special",
+                        "position": current_special_mole_position,
+                        "start_time": time.time()
+                    })
 
-                client.special_mole_active = False
-                asyncio.create_task(client.send_special_hit(current_special_mole_id))
+                    client.special_mole_active = False
+                    asyncio.create_task(client.send_special_hit(current_special_mole_id))
+
 
 def draw_playing_screen(screen, state, client):
     mouse_x, mouse_y = pg.mouse.get_pos()
