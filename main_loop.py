@@ -5,6 +5,7 @@ import UI.game_play as pl
 import UI.game_gameover_ui as ov
 import UI.game_waiting as wait
 import settings.game_settings as gs
+import settings.animation as ani
 from UI.client import GameClient
 
 # loading (等待與加入)
@@ -12,10 +13,6 @@ def draw_loading_screen(screen, current_loading_time):
     loading_surface = gs.FONT_SIZE.render(f"Loading..{current_loading_time} s", True, gs.WHITE)
     loading_rect = loading_surface.get_rect(center = (gs.WIDTH / 2, gs.HEIGHT / 2))
     screen.blit(loading_surface, loading_rect)
-
-    for event in pg.event.get():
-        if event.type == pg.QUIT:
-            handle_quit()
 
 # 處理退出遊戲
 def handle_quit():
@@ -82,6 +79,8 @@ async def run_game_loop(screen, client: GameClient):
         for event in events:
             if event.type == pg.QUIT:
                 handle_quit()
+            elif event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                ani.add_click_effect(pg.mouse.get_pos())
 
         with client.state_lock:
             current_game_state = client.game_state
@@ -111,7 +110,7 @@ async def run_game_loop(screen, client: GameClient):
             pl.draw_playing_screen(screen, state, client)
 
             if not client.is_watching:   # 如果是觀戰模式不觸發地鼠打擊
-                pl.handle_playing_events(state, client, score, handle_quit)
+                pl.handle_playing_events(events, state, client, score, handle_quit)
 
         elif current_game_state in ["gameover", "post_gameover"]:
             client.ready_mode = None
@@ -138,6 +137,7 @@ async def run_game_loop(screen, client: GameClient):
         else:
             print(f"[警告] 未知的 game_state: {current_game_state}")
 
+        ani.draw_click_effects(screen)
         pg.display.flip()
         clock.tick(60)
         await asyncio.sleep(0)

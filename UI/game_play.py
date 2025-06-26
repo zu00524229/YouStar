@@ -86,7 +86,7 @@ last_click_time = 0
 click_cooldown = 0.2  # 每次打擊至少間隔 0.2 秒，避免連點送出
 
 # 處理打地鼠判定
-def handle_playing_events(state, client, score, handle_quit):
+def handle_playing_events(events, state, client, score, handle_quit):
     global last_click_time
         
     # 如果是觀戰模式 直接return
@@ -104,7 +104,7 @@ def handle_playing_events(state, client, score, handle_quit):
     current_mole_id = state.get("current_mole_id")
     current_special_mole_id = state.get("current_special_mole_id")
 
-    for event in pg.event.get():
+    for event in events:
         if event.type == pg.QUIT:
             handle_quit()
 
@@ -122,9 +122,20 @@ def handle_playing_events(state, client, score, handle_quit):
                 x, y = gs.GRID_POSITIONS[current_mole_position]
                 dist_sq = (mouse_x - x) ** 2 + (mouse_y - y) ** 2
 
-                if dist_sq <= 60 ** 2:
+                if dist_sq <= 50 ** 2:
                     print(f"[前端] 命中一般地鼠 ID={current_mole_id} Score={current_mole_score}")
                     asyncio.create_task(client.send_hit(current_mole_id))       # 只告訴後端打中哪隻地鼠
+
+                    # 加上前端 HIT 動畫觸發
+                    state.setdefault("hit_effects", []).append({
+                        "type": "normal",
+                        "position": current_mole_position,
+                        "start_time": time.time()
+                    })
+
+
+                    # 送出後端判定
+                    asyncio.create_task(client.send_hit(current_mole_id))
 
             # === 特殊地鼠判定 ===
             if special_mole_active and current_special_mole_position is not None:
@@ -146,17 +157,32 @@ def draw_playing_screen(screen, state, client):
     draw_moles(screen, state)                                   # 普通/特殊地鼠顯示
     draw_score_popups(screen)                                   # 擊中地鼠的分數彈出動畫
     
+
+    # === 顯示打擊動畫 ===
+    now = time.time()
+    for effect in state["hit_effects"][:]:  # 複製一份避免中途移除出錯
+        pos = gs.GRID_POSITIONS[effect["position"]]
+        elapsed = now - effect["start_time"]
+
+        if elapsed < 0.2:
+            # 顯示簡單動畫，例如 HIT 字、hover 圈圈
+            hit_text = gs.BIG_FONT_SIZE.render("HIT!", True, (255, 0, 0))
+            screen.blit(hit_text, (pos[0] - 20, pos[1] - 40))
+            pg.draw.circle(screen, (255, 0, 0), pos, 65, 3)
+        else:
+            state["hit_effects"].remove(effect)
+
     # 顯示一般地鼠的打擊判定區（紅色）
     if state["mole_active"] and state["current_mole_position"] >= 0:
         x, y = gs.GRID_POSITIONS[state["current_mole_position"]]
         pg.draw.circle(screen, (255, 0, 0), (x, y), 60, 2)  # 紅色邊框，半徑60（與邏輯一致）
 
-    # 顯示特殊地鼠的打擊判定區（青藍色）
-    if state["special_mole_active"] and state["current_special_mole_position"] >= 0:
-        sx, sy = gs.GRID_POSITIONS[state["current_special_mole_position"]]
-        pg.draw.circle(screen, (0, 255, 255), (sx, sy), 60, 2)  # 青藍色邊框
+    # # 顯示特殊地鼠的打擊判定區（青藍色）
+    # if state["special_mole_active"] and state["current_special_mole_position"] >= 0:
+    #     sx, sy = gs.GRID_POSITIONS[state["current_special_mole_position"]]
+    #     pg.draw.circle(screen, (0, 255, 255), (sx, sy), 60, 2)  # 青藍色邊框
 
     # 顯示滑鼠當前位置（黃十字）
-    pg.draw.line(screen, (255, 255, 0), (mouse_x - 10, mouse_y), (mouse_x + 10, mouse_y), 1)
-    pg.draw.line(screen, (255, 255, 0), (mouse_x, mouse_y - 10), (mouse_x, mouse_y + 10), 1)
+    # pg.draw.line(screen, (255, 255, 0), (mouse_x - 10, mouse_y), (mouse_x + 10, mouse_y), 1)
+    # pg.draw.line(screen, (255, 255, 0), (mouse_x, mouse_y - 10), (mouse_x, mouse_y + 10), 1)
     

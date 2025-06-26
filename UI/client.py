@@ -65,6 +65,7 @@ class GameClient:
         self.score = 0                  # 遊戲分數
         self.current_players = 0        # 當前伺服器人數
         self.watching_players = 0       # 當前觀戰人數
+        self.hit_effects = []           # 打擊動畫
 
         # 排行榜資料
         self.leaderboard_data = []      
@@ -80,6 +81,7 @@ class GameClient:
                 "remaining_time": self.remaining_time,                # 遊戲剩餘時間（playing 階段）
                 "loading_time": self.loading_time,                    # 等待倒數時間（loading 階段）
                 "leaderboard_data": self.leaderboard_data,            # 排行榜資料（遊戲結束後顯示）
+                "hit_effects": self.hit_effects,                      # 初始化打擊動畫效果
 
                 # 一般地鼠資料
                 "current_mole_id": self.current_mole_id,              # 地鼠唯一 ID，用於避免重複得分

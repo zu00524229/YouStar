@@ -4,6 +4,7 @@ import time
 import asyncio
 import settings.game_settings as gs
 import settings.context as ct
+import settings.animation as ani
 from Controllers.login_controller import login_to_control
 
 WHITE, BLACK, BLUE = gs.WHITE, gs.BLACK, gs.LOGIN_BLUE
@@ -41,6 +42,7 @@ async def login_screen(screen):
             if event.type == pg.QUIT:
                 pg.quit(); exit()
             elif event.type == pg.MOUSEBUTTONDOWN:
+                ani.add_click_effect(event.pos)     # 滑鼠動畫
                 active_user = input_box_user.collidepoint(event.pos)
                 active_pass = input_box_pass.collidepoint(event.pos)
                 if login_button.collidepoint(event.pos):
@@ -97,5 +99,6 @@ async def login_screen(screen):
             msg_surface = gs.SMALL_FONT_SIZE.render(message, True, RED)
             screen.blit(msg_surface, (gs.WIDTH // 2 - msg_surface.get_width() // 2, login_button.y + 60))
 
+        ani.draw_click_effects(screen)  # 滑鼠動畫
         pg.display.flip()
         clock.tick(30)

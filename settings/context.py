@@ -28,6 +28,8 @@ observer_players = set()                 # 用來標記這些玩家不會餐與�
 GAME_DURATION = 30                       # 遊戲時間 60s
 game_start_time = None                  
 gameover_start_time = None
+click_effects = []                      # 滑鼠動畫
+
 
 # 遊戲階段控制
 game_phase = "waiting"                   # 遊戲狀態機: waiting / loading / playing / gameover / post_gameover
