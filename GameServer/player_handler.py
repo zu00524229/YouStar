@@ -39,7 +39,7 @@ async def player_handler(websocket):
     print("[Debug] player_handler() 開始")
     
     username = await websocket.recv()       # 接收 client connect_to_server() 資料
-    print(f"[GameServer] 玩家 {username} 建立 WebSocket ID = {id(websocket)}")
+    # print(f"[GameServer] 玩家 {username} 建立 WebSocket ID = {id(websocket)}")
     print(f"[GameServer] 玩家 {username} 連線進來")
 
     ct.connected_players.add(username)
@@ -80,7 +80,7 @@ async def player_handler(websocket):
     # 接收玩家資料
     try:
         async for msg in websocket:
-            print(f"[GameServer] 收到玩家 {username} 訊息: {msg}")
+            # print(f"[GameServer] 收到玩家 {username} 訊息: {msg}")
             try:
                 # 玩家點擊 ready
                 if msg == "ready":

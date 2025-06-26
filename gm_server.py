@@ -48,7 +48,7 @@ async def send_update_status(ws):
     print("[Debug] send_update_status() 啟動")
     while True:
         try:
-            print(f"[Debug] 傳送中控狀態：{ct.game_phase}, {len(ct.connected_players)}人")
+            # print(f"[Debug] 傳送中控狀態：{ct.game_phase}, {len(ct.connected_players)}人")
             await ws.send(json.dumps({
                 "type": "update_status",
                 "server_url": ct.MY_GAME_SERVER_WS,

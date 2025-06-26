@@ -28,8 +28,6 @@ class GameClient:
         self.ready_offer_joined_players = set()    # 有點擊 Ready 的玩家名單（你可選擇顯示）
         self.ready_offer_total_players = 0
 
-        self.current_mole_duration = 1.2  # 
-        self.current_mole_spawn_time = 0
 
         # 玩家選擇再玩 / 觀戰 / 回大廳的意圖
         self.ready_mode = None
@@ -49,6 +47,8 @@ class GameClient:
         self.current_mole_type_name = ""
         self.mole_active = False
         self.current_mole_score = 0
+        self.current_mole_spawn_time = 0
+        self.current_mole_duration = 1.2  # 
 
         # 特殊地鼠同步資料
         self.current_special_mole_id = -1
@@ -56,6 +56,8 @@ class GameClient:
         self.current_special_mole_type_name = ""
         self.special_mole_active = False
         self.current_special_mole_score = 0
+        self.current_special_mole_duration = 3
+        self.current_special_mole_spawn_time = 0
         
 
         # 遊戲整體狀態
@@ -89,16 +91,20 @@ class GameClient:
                 "current_mole_type_name": self.current_mole_type_name,# 地鼠種類名稱（對應顏色與分數）
                 "current_mole_score": self.current_mole_score,        # 該地鼠被打中時的得分
                 "mole_active": self.mole_active,                      # 地鼠是否還有效（是否能得分）
+                "current_mole_duration": self.current_mole_duration,        # 地鼠出現的持續時間
+                "current_mole_spawn_time": self.current_mole_spawn_time,    # 地鼠出現時間戳，用於同步飛字消失時間
 
                 # 特殊地鼠資料（例如：鑽石地鼠）
+                "current_special_mole_id": self.current_special_mole_id,               # 特殊地鼠id
                 "current_special_mole_position": self.current_special_mole_position,   # 特殊地鼠位置
                 "current_special_mole_type_name": self.current_special_mole_type_name, # 特殊地鼠名稱
                 "current_special_mole_score": self.current_special_mole_score,         # 特殊地鼠分數
-                "special_mole_active": self.special_mole_active,       # 特殊地鼠是否有效
+                "special_mole_active": self.special_mole_active,                       # 特殊地鼠是否有效
+                "current_special_mole_spawn_time": self.current_special_mole_spawn_time,
+                "current_special_mole_duration": self.current_special_mole_duration,
 
                 "score": self.score,                                   # 玩家當前分數（僅給自己看用）
-                "current_mole_duration": self.current_mole_duration,   # 地鼠出現的持續時間
-                "current_mole_spawn_time": self.current_mole_spawn_time, # 地鼠出現時間戳，用於同步飛字消失時間
+
             }
 
 
@@ -211,6 +217,8 @@ class GameClient:
                                 self.current_special_mole_type_name = mole["mole_type"]
                                 self.current_special_mole_score = mole.get("score", 0)  # 地鼠本身價值(分數)
                                 self.special_mole_active = mole["active"]
+                                self.current_special_mole_duration = mole.get("duration", 3)
+                                self.current_special_mole_spawn_time = mole.get("spawn_time", time.time())
 
                     # ---------- 接收後端地鼠得分更新 ---------
                     elif data.get("event") == "score_update":
@@ -230,7 +238,6 @@ class GameClient:
                         mole_id = data.get("mole_id")
                         mole_name = data.get("mole_name", "Mole")
                         hit_user = data.get("username")
-                        # print(f"[前端] 飛字提示：{mole_name} +{score}")
                         if hit_user == self.username:   # 只顯示個人
                             print(f"[前端] 飛字提示：{mole_name} +{score}")
                             self.show_score_popup(score, mole_id, mole_name)
@@ -438,7 +445,7 @@ class GameClient:
                 popup_text = f"{mole_name} {'+' if score > 0 else ''}{score}"
 
                 # 查找對應地鼠顏色
-                color = next((m["color"] for m in gs.MOLE_TYPES if m["name"] == mole_name), (255, 215, 0))
+                color = next((m["color"] for m in gs.MOLE_TYPES + gs.SPMOLE_TYPES if m["name"] == mole_name), (255, 215, 0))
 
                 popup = {
                     "text": popup_text,

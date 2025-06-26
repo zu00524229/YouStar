@@ -74,7 +74,7 @@ def draw_moles(screen, state):
     # === 特殊地鼠 ===（此處暫不加時間限制）
     if state["special_mole_active"] and state["current_special_mole_position"] >= 0:
         x, y = gs.GRID_POSITIONS[state["current_special_mole_position"]]
-        mole_info = next((m for m in gs.MOLE_TYPES if m["name"] == state["current_special_mole_type_name"]), None)
+        mole_info = next((m for m in gs.SPMOLE_TYPES if m["name"] == state["current_special_mole_type_name"]), None)
         if mole_info:
             mole_color = mole_info["color"]
             pg.draw.circle(screen, (gs.WHITE), (x, y), 55)  # 外圈白框
@@ -124,7 +124,6 @@ def handle_playing_events(events, state, client, score, handle_quit):
 
                 if dist_sq <= 50 ** 2:
                     print(f"[前端] 命中一般地鼠 ID={current_mole_id} Score={current_mole_score}")
-                    asyncio.create_task(client.send_hit(current_mole_id))       # 只告訴後端打中哪隻地鼠
 
                     # 加上前端 HIT 動畫觸發
                     state.setdefault("hit_effects", []).append({
@@ -132,7 +131,6 @@ def handle_playing_events(events, state, client, score, handle_quit):
                         "position": current_mole_position,
                         "start_time": time.time()
                     })
-
 
                     # 送出後端判定
                     asyncio.create_task(client.send_hit(current_mole_id))
@@ -142,11 +140,18 @@ def handle_playing_events(events, state, client, score, handle_quit):
                 x, y = gs.GRID_POSITIONS[current_special_mole_position]
                 dist_sq = (mouse_x - x) ** 2 + (mouse_y - y) ** 2
 
-                if dist_sq <= 60 ** 2:
-                    special_score = next((m["score"] for m in gs.MOLE_TYPES if m["name"] == current_special_mole_type_name), 0)
+                if dist_sq <= 50 ** 2:
+                    special_score = next((m["score"] for m in gs.SPMOLE_TYPES if m["name"] == current_special_mole_type_name), 0)
                     print(f"[前端] 命中特殊地鼠 ID={current_special_mole_id} Score={special_score}")
-                    asyncio.create_task(client.send_special_hit(current_special_mole_id))
 
+                state.setdefault("hit_effects", []).append({
+                    "type": "special",
+                    "position": current_special_mole_position,
+                    "start_time": time.time()
+                })
+
+                client.special_mole_active = False
+                asyncio.create_task(client.send_special_hit(current_special_mole_id))
 
 def draw_playing_screen(screen, state, client):
     mouse_x, mouse_y = pg.mouse.get_pos()

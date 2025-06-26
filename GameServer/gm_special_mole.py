@@ -4,6 +4,7 @@ import random
 import asyncio
 import time
 import settings.context as ct
+import settings.game_settings as gs
 from GameServer.broadcaster import broadcast
 
 # === 特殊地鼠產生器 ===
@@ -18,7 +19,7 @@ async def special_mole_sender():
 
         print("[GameServer] special_mole_sender 進入 playing loop!")
         while ct.game_phase == "playing":
-            sleep_time = random.uniform(5.0, 10.0)
+            sleep_time = random.uniform(5.0, 8.0)
             await asyncio.sleep(sleep_time)
 
             if ct.game_phase != "playing":
@@ -35,13 +36,15 @@ async def special_mole_sender():
             if not available_positions:
                 print("[GameServer] 沒有可用位置放特殊地鼠，跳過這輪")
                 continue
+            
+            mole_data = gs.SPMOLE_TYPES[0]
 
             ct.current_special_mole = {
                 "mole_id": ct.current_special_mole_id,
                 "position": random.choice(available_positions),
-                "mole_type": "Diamond Mole",
-                "score": 15,
-                "color": (0, 255, 255),
+                "mole_type": mole_data["name"],
+                "score": mole_data["score"],
+                "color": mole_data["color"],
                 "spawn_time": time.time(),
                 "duration": 3.0,
                 "active": True

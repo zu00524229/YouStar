@@ -22,7 +22,7 @@ async def handle_hit(msg, username):
     spawn_time = ct.current_mole.get("spawn_time", 0)
     duration = ct.current_mole.get("duration", 1.2)
     delay = hit_time - spawn_time
-    print(f"[Debug] 玩家打擊延遲 {delay:.2f}s vs 容許 {duration:.2f}s")
+    # print(f"[Debug] 玩家打擊延遲 {delay:.2f}s vs 容許 {duration:.2f}s")
 
     # 檢查地鼠ID是否為最新或是否還有效(活著)
     if mole_id != ct.current_mole["mole_id"] or not ct.current_mole["active"]:
@@ -68,6 +68,7 @@ async def handle_hit(msg, username):
     await bc.broadcast({"event": "mole_update", "mole": ct.current_mole})
     await asyncio.sleep(0.3)
 
+# 特殊地鼠打擊
 async def handle_special_hit(msg, username):
     parts = msg.split(":")
     mole_id = int(parts[1])
@@ -93,8 +94,9 @@ async def handle_special_hit(msg, username):
             "event": "score_popup",
             "score": player_score,
             "mole_id": mole_id,
-            "mole_name": ct.current_mole.get("mole_type", ""),
-            "mole_color": ct.current_mole.get("color", (255, 255, 255))
+            "mole_name": ct.current_special_mole.get("mole_type", ""),
+            "mole_color": ct.current_special_mole.get("color", (255, 255, 255)),
+            "username": username
         })
 
         # 廣播分數更新事件並通知前端分數顯示
