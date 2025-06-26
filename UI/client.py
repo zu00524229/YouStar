@@ -230,7 +230,7 @@ class GameClient:
                         mole_id = data.get("mole_id")
                         mole_name = data.get("mole_name", "Mole")
                         hit_user = data.get("username")
-                        print(f"[前端] 飛字提示：{mole_name} +{score}")
+                        # print(f"[前端] 飛字提示：{mole_name} +{score}")
                         if hit_user == self.username:   # 只顯示個人
                             print(f"[前端] 飛字提示：{mole_name} +{score}")
                             self.show_score_popup(score, mole_id, mole_name)
@@ -265,16 +265,6 @@ class GameClient:
                                 # print("[前端] 接收到即時 leaderboard 資料：", self.leaderboard)
                             self.game_state = game_phase
                             # print(f"[前端] 更新 client.game_state = {self.game_state}")
-
-                            # # 顯示遊戲階段提示
-                            # if game_phase == "playing":
-                            #     print("[前端][Status WS] GameServer 已進入遊戲，開始 playing")
-                            # elif game_phase == "gameover":
-                            #     print("[前端][Status WS] GameServer 進入 gameover phase")
-                            # elif game_phase == "waiting":
-                            #     print("[前端][Status WS] GameServer 等待中，進入 waiting")
-                            # elif game_phase == "loading":
-                            #     print("[前端][Status WS] GameServer 進入 loading")
 
                 except Exception as e:
                     print(f"[前端] 收到非 json 訊息: {msg}, error: {e}")
@@ -389,8 +379,6 @@ class GameClient:
             except Exception as e:
                 print(f"[Debug] client.send_ready() 發送錯誤：{e}")
 
-        # self.async_loop.create_task(_send())
-        # asyncio.run_coroutine_threadsafe(_send(), self.loop)
         self.loop.call_soon_threadsafe(lambda: asyncio.create_task(_send()))
         print("[Debug] create_task 已被呼叫")
 

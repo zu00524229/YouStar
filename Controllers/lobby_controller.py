@@ -4,6 +4,7 @@ import settings.game_settings as gs
 import asyncio
 import time
 from UI.game_lobby import render_server_status_ui, draw_lobby_title_and_hint
+import settings.animation as ani
 
 
 # 處理玩家選擇 GameServer 的事件（滑鼠點擊
@@ -47,6 +48,7 @@ async def show_lobby(screen, client, handle_quit):
     server_list = await client.get_server_list()
     last_refresh_time = time.time()
     while lobby_running:
+        events = pg.event.get()
         screen.fill(gs.BLACK)
         server_buttons = []
         mouse_x, mouse_y = pg.mouse.get_pos()
@@ -63,7 +65,7 @@ async def show_lobby(screen, client, handle_quit):
             )
             server_buttons.append((box_rect, watch_button_rect, server["server_url"]))
 
-        for event in pg.event.get():
+        for event in events:
             if event.type == pg.QUIT:
                 handle_quit()
 
@@ -72,9 +74,11 @@ async def show_lobby(screen, client, handle_quit):
                 server_list = await client.get_server_list()
 
             elif event.type == pg.MOUSEBUTTONDOWN:
+                ani.add_click_effect(event.pos)
                 result = await handle_server_selection(event, server_buttons, client)
                 if result == "play":
                     return "play"
 
+        ani.draw_click_effects(screen)
         pg.display.flip()
         pg.time.Clock().tick(30)

@@ -36,7 +36,7 @@ async def handle_hit(msg, username):
 
     # 後端決定得分
     player_score = ct.current_mole.get("score", 0)
-    print(f"[GameServer] 玩家 {username} 打中地鼠 {mole_id}，分數 {player_score}")
+    # print(f"[GameServer] 玩家 {username} 打中地鼠 {mole_id}，分數 {player_score}")
 
     # 登記分數並設為失效
     ct.current_mole["active"] = False   # 打中後地鼠失效 : 防止重複打擊
@@ -45,7 +45,7 @@ async def handle_hit(msg, username):
     # 更新個人排行榜最高分
     if ct.current_scores[username] > ct.leaderboard.get(username, 0):
         ct.leaderboard[username] = ct.current_scores[username]
-        print(f"[GameServer] 更新 {username} 的最高分為 {ct.current_scores[username]}")
+        # print(f"[GameServer] 更新 {username} 的最高分為 {ct.current_scores[username]}")
 
     # 廣播分數更新事件並通知前端顯示飛字提示
     await bc.broadcast({

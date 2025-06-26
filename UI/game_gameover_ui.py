@@ -1,7 +1,8 @@
 import pygame as pg
 import settings.game_settings as gs
+import settings.animation as ani
 
-def draw_gameover_screen(screen, handle_quit, client):
+def draw_gameover_screen(screen, handle_quit, client, events):
     if client.game_state not in ["gameover", "post_gameover"]:
         print("[前端] 已進入非 gameover/post_gameover 狀態，跳出畫面")
         return
@@ -61,11 +62,12 @@ def draw_gameover_screen(screen, handle_quit, client):
         screen.blit(watch_surface, watch_rect)
 
     # 事件處理
-    for event in pg.event.get():
+    for event in events:
         if event.type == pg.QUIT:
             handle_quit()
 
         elif event.type == pg.MOUSEBUTTONDOWN:
+            ani.add_click_effect(event.pos)
             if not client.ready_offer_started and ready_rect.collidepoint(mouse_x, mouse_y):
                 client.send_post_game_again()
                 client.ready_offer_started = True

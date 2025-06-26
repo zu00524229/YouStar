@@ -45,5 +45,6 @@ async def reset_game_to_waiting():
     ct.game_start_time = None
     ct.gameover_start_time = None
     ct.phase_changed_event.clear()
+    ct.save_leaderboard()
     print("[GameServer] 已成功切回 waiting，準備接收新玩家")
     await bc.broadcast_status_update()

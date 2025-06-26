@@ -1,5 +1,7 @@
 # context.py        :   gm_server.py 的變數管理
 import asyncio
+import json
+import os
 
 shared_client = None
 ws_receiver_start_count = 0 # 檢查殭屍連線
@@ -13,6 +15,8 @@ MY_GAME_SERVER_WS = "ws://127.0.0.1:8001/ws"
 # GameServer 狀態
 phase_changed_event = asyncio.Event()    # 等待進入 playing → mole_sender 才啟動
 connected_players = set()                # 目前在線玩家 username 集合
+
+LEADERBOARD_FILE = "leaderboard.json"
 leaderboard = {}                         # 玩家最高分字典 {username: score}
 current_scores = {}                      # 玩家當前當局分數
 watch_players = set()                    # 觀戰玩家 集合
@@ -58,4 +62,17 @@ current_special_mole = {
 }
 
 
+def save_leaderboard():
+    with open(LEADERBOARD_FILE, "w") as f:
+        json.dump(leaderboard, f)
+    print("[context] leaderboard 已儲存至檔案")
 
+def load_leaderboard():
+    global leaderboard
+    if os.path.exists(LEADERBOARD_FILE):
+        with open(LEADERBOARD_FILE, "r") as f:
+            leaderboard = json.load(f)
+        print("[context] leaderboard 已從檔案載入")
+    else:
+        leaderboard = {}
+        print("[context] 沒有找到 leaderboard 檔案，初始化為空字典")

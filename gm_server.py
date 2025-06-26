@@ -17,6 +17,8 @@ import GameServer.gm_loading as load
 import GameServer.gm_gameover as over
 import GameServer.gm_waiting as wait
 
+ct.load_leaderboard()
+print(f"[gm_server] 成功載入 leaderboard：{ct.leaderboard}")
 # ---------------------------------------------------
 # 向 ControlServer 註冊自己 & 持續報 status / ping
 async def register_to_control():

@@ -113,22 +113,14 @@ async def run_game_loop(screen, client: GameClient):
                 pl.handle_playing_events(events, state, client, score, handle_quit)
 
         elif current_game_state in ["gameover", "post_gameover"]:
-            client.ready_mode = None
-            while client.ready_mode is None:
-                if client.game_state not in ["gameover", "post_gameover"]:
-                    print("[前端] 偵測到已離開 gameover 狀態，中止 gameover 畫面迴圈")
-                    break
-
-                result = ov.draw_gameover_screen(screen, handle_quit, client)
-                pg.display.flip()
-                await asyncio.sleep(0.1)
-
-            if result == "again":
-                return "again"
-            elif result == "watch":
-                return "watch"
-            elif result == "lobby":
-                return "lobby"
+            result = ov.draw_gameover_screen(screen, handle_quit, client, events)
+                
+            if result in ["again", "watch", "lobby"]:
+                return result
+                
+            # ani.draw_click_effects(screen)
+            # pg.display.flip()
+            # await asyncio.sleep(0.1)
             
         elif current_game_state == "lobby":
             print("[MainLoop] 玩家已返回 lobby，準備跳出遊戲迴圈")

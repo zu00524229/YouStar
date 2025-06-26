@@ -120,7 +120,6 @@ async def player_handler(websocket):
                         ct.ready_players = set()
                     ct.ready_players.add(username)
 
-
                 # 遊戲結束後 : 選擇 lobby / Again
                 elif msg.startswith("post_game_again:"):
                     username = msg.split(":")[1]
