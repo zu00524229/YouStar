@@ -8,10 +8,10 @@ import settings.game_settings as gs
 from GameServer.broadcaster import broadcast
 
 # === 特殊地鼠產生器 ===
-async def special_mole_sender():
+def special_mole_sender_thread():
     while True:
-        print("[GameServer] special_mole_sender 等待 phase_changed_event（僅在 playing 啟動）")
-        await ct.phase_changed_event.wait()
+        # print("[GameServer] special_mole_sender 等待 phase_changed_event（僅在 playing 啟動）")
+        # ct.phase_changed_event.wait()
 
         if ct.game_phase != "playing":
             ct.phase_changed_event.clear()
@@ -20,7 +20,7 @@ async def special_mole_sender():
         print("[GameServer] special_mole_sender 進入 playing loop!")
         while ct.game_phase == "playing":
             sleep_time = random.uniform(5.0, 8.0)
-            await asyncio.sleep(sleep_time)
+            # asyncio.sleep(sleep_time)
 
             if ct.game_phase != "playing":
                 break
@@ -53,7 +53,7 @@ async def special_mole_sender():
             print(f"[GameServer] 發送 Special Mole ID {ct.current_special_mole_id} at pos {ct.current_special_mole['position']}")
             print(f"[Debug] 特殊地鼠位置: {ct.current_special_mole['position']} | 一般地鼠位置: {ct.current_mole['position']}")
 
-            await broadcast({
+            broadcast({
                 "event": "special_mole_update",
                 "mole": ct.current_special_mole
             })

@@ -23,7 +23,7 @@ class GameClient:
         self.server_list = []
         self.ws_conn = None         # 當前與 GameServer 保持連線 → 用來發 hit / 收事件
         
-        # self.ready_offer_remaining_time = 0      # 剩餘倒數時間（伺服器提供
+        self.ready_offer_remaining_time = 0      # 剩餘倒數時間（伺服器提供
         self.ready_offer_started = False           # 是否已進入 ready 倒數階段（避免重複點擊 Again）
         self.ready_offer_joined_players = set()    # 有點擊 Ready 的玩家名單（你可選擇顯示）
         self.ready_offer_total_players = 0
@@ -84,6 +84,7 @@ class GameClient:
                 "loading_time": self.loading_time,                    # 等待倒數時間（loading 階段）
                 "leaderboard_data": self.leaderboard_data,            # 排行榜資料（遊戲結束後顯示）
                 "hit_effects": self.hit_effects,                      # 初始化打擊動畫效果
+                "ready_offer_remaining_time": self.ready_offer_remaining_time,      # 剩餘倒數時間（伺服器提供
 
                 # 一般地鼠資料
                 "current_mole_id": self.current_mole_id,              # 地鼠唯一 ID，用於避免重複得分
@@ -184,14 +185,15 @@ class GameClient:
 
                     # ----------  地鼠事件 ----------
                     if data.get("event") == "mole_update":
-                        print(f"[前端] 收到地鼠：{data['mole']}")
+                        # print(f"[前端] 收到地鼠：{data['mole']}")
                         with self.state_lock:
                             if self.game_state == "playing":
                                 mole = data["mole"]
-                                # 當地鼠ID不符時，將前一隻地鼠標記為失效，防止重複顯示
+                                # 若新地鼠 ID 與目前地鼠不同，將舊地鼠設為失效
                                 if mole["mole_id"] != self.current_mole_id:
-                                    print(f"[前端] 新地鼠 ID: {mole['mole_id']} → 前一隻為 {self.current_mole_id}")
+                                    # print(f"[前端] 新地鼠 ID: {mole['mole_id']} → 前一隻為 {self.current_mole_id}")
                                     self.mole_active = False    # 停止前一隻顯示
+                                # 更新當前地鼠資訊
                                 self.current_mole_id = mole["mole_id"]
                                 self.current_mole_position = mole["position"]
                                 self.current_mole_type_name = mole["mole_type"]
@@ -211,7 +213,8 @@ class GameClient:
                             if self.game_state == "playing":
                                 mole = data["mole"]
                                 if mole["mole_id"] != self.current_special_mole_id:
-                                    self.special_mole_active = False
+                                    self.special_mole_active = False    # 停止上一隻特殊地鼠
+                                # 更新特殊地鼠資訊
                                 self.current_special_mole_id = mole["mole_id"]
                                 self.current_special_mole_position = mole["position"]
                                 self.current_special_mole_type_name = mole["mole_type"]
@@ -225,21 +228,21 @@ class GameClient:
                         score_username = data.get("username")
                         score = data.get("score", 0)
                         if score_username == self.username:
-                            self.score = score
+                            self.score = score  # 更新自己的分數
                             print(f"[前端] 自己分數更新：{score}")
                         else:
-                            print(f"[前端] 收到其他玩家 {score_username} 的分數更新（忽略）")
-                        
+                            # print(f"[前端] 收到其他玩家 {score_username} 的分數更新（忽略）")
+                            pass    # 忽略其他玩家的分數更新（如果需要同步顯示再加
 
                     # 當收到後端的得分更新（分數提示）時顯示飛字
                     elif data.get("event") == "score_popup":
-                        print("[前端] 收到 score_popup 飛字事件！")
+                        # print("[前端] 收到 score_popup 飛字事件！")
                         score = data.get("score", 0)
                         mole_id = data.get("mole_id")
                         mole_name = data.get("mole_name", "Mole")
                         hit_user = data.get("username")
                         if hit_user == self.username:   # 只顯示個人
-                            print(f"[前端] 飛字提示：{mole_name} +{score}")
+                            # print(f"[前端] 飛字提示：{mole_name} +{score}")
                             self.show_score_popup(score, mole_id, mole_name)
 
                     # ----------  遊戲結束排行榜 ----------
@@ -247,11 +250,6 @@ class GameClient:
                         print("[前端] 收到最終排行榜資料")
                         with self.state_lock:
                             self.final_leaderboard_data = data.get("leaderboard", [])
-
-                    # ------- 遊戲結束後 ready 按鈕事件 -----
-                    elif data["event"] == "ready_offer":
-                        print("[前端] 收到 ready_offer 廣播")
-                        self.ready_offer_started = True
 
                     # ----------  遊戲狀態更新 ----------
                     elif data.get("event") == "status_update":
@@ -313,16 +311,6 @@ class GameClient:
         print(f"[Debug] 第 {ct.ws_receiver_start_count} 次啟動 ws_receiver")
 
 
-    # ---------- 遊戲前 Ready 模式控制 ----------
-    def reset_ready_offer(self):
-        self.ready_offer = None
-        self.ready_offer_remaining_time = 0
-        self.joined_ready = False
-
-    def send_post_game_again(self):
-        if self.ws_conn:
-            asyncio.create_task(self.ws_conn.send(f"post_game_again:{self.username}"))
-            print(f"[Client] 發送 post_game_again:{self.username}")
 
 
     # ---------- Lobby 切換與連線重置 ----------
@@ -366,7 +354,7 @@ class GameClient:
         except:
             return False
 
-    # ready 按鈕 送出事件給 gameserver
+    # 遊戲開始前 Ready 按鈕 
     def send_ready(self):
         async def _send():
             print("[Debug] send_ready() 被呼叫（內層 async）")
@@ -414,7 +402,7 @@ class GameClient:
             print("[前端] ws_conn 無效或已關閉，無法發送 special_hit")
 
 
-    # 自動重連包裝器
+    # WebSocket 重連處理器
     async def ws_receiver_with_reconnect(self):
         max_retries = 5  # 最多重連次數
         retry_delay = 3  # 每次等待秒數
@@ -456,11 +444,12 @@ class GameClient:
                 }
                 gs.score_popups.append(popup)
 
-    # 觀戰模式
+    # 觀戰模式 watch
     async def send_watch(self, server_url):
         self.server_url = server_url
         self.is_watching = True
         await self.connect_to_server()
-        # if self.is_watching and self.ws_conn:
-        #     await self.ws_conn.send("watch")
+        if self.is_watching and self.ws_conn:
+            await self.ws_conn.send("watch")
+            print("[Client] 送出觀戰指令 watch 給 GameServer")
         

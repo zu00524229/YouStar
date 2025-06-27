@@ -5,6 +5,7 @@ import asyncio
 import websockets
 import settings.context as ct
 import GameServer.broadcaster as bc
+import GameServer.gm_replay as rep
 import GameServer.gm_gameover as gov
 import GameServer.gm_ready as rad
 import GameServer.player_message_handler as pmh
@@ -33,6 +34,32 @@ async def notify_control_player_offline(username):
             print(f"[GameServer] 已通知 ControlServer 玩家 {username} offline")
     except Exception as e:
         print(f"[GameServer] 通知 ControlServer 玩家 offline 失敗: {e}")
+
+# 殭屍連線掃描
+async def zombie_player_cleaner():
+    while True:
+        to_remove = []      # 要移除的殭屍玩家列表
+
+        # 對所有玩家的 WebSocket 進行 ping 測試
+        for username, ws in ct.player_websockets.items():
+            try:
+                # ws.ping() ➜ 傳送一個 ping 訊號
+                # pong_waiter ➜ 等待對方 pong 回應
+                pong_waiter = await ws.ping()   
+                await asyncio.wait_for(pong_waiter, timeout=2)  # 最多等 2 秒
+            except:     # 若無回應，表示該 WebSocket 可能已斷線或異常中斷
+                print(f"[殭屍清理] 玩家 {username} 無回應 ➜ 移除")
+                to_remove.append(username)
+
+        # 清除所有偵測到的殭屍玩家
+        for username in to_remove:
+            ct.connected_players.discard(username)        # 從在線名單移除
+            ct.player_websockets.pop(username, None)     # 移除 WebSocket 映射
+            ct.watch_players.discard(username)           # 移除觀戰名單（如果是觀戰者）
+            await notify_control_player_offline(username)  # 通知 ControlServer 該玩家 offline
+        # 每 10 秒執行一次檢查   
+        await asyncio.sleep(10)
+
 
 # 玩家處理器 GameServer 控制
 async def player_handler(websocket):
@@ -99,41 +126,19 @@ async def player_handler(websocket):
                 elif msg.startswith("final:"):
                     await pmh.handle_final_score(msg)
 
-                # 遊戲開始前 Ready 邀請
-                elif msg.startswith("ready_offer:"):
-                    sender = msg.split(":")[1]
-                    if not ct.ready_offer_active:
-                        print(f"[GameServer] 玩家 {sender} 發送 ready_offer")
-                        await rad.handle_ready_offer(sender)
-                    else:
-                        print(f"[GameServer] 忽略 {sender} 的重複 ready_offer，已在等待階段中")
-
                 # 玩家觀戰模式（新增）
                 elif msg == "watch":
-                    ct.watch_players.add(username)
-                    print(f"[GameServer] 玩家 {username} 設為觀戰者，目前觀戰人數：{len(ct.watch_players)}")
-
-                # 玩家回應廣播選擇 參與 ready 階段 (加入)
-                elif msg == "join_ready":
-                    print(f"[GameServer] 玩家 {username} 加入 ready 隊列")
-                    if not hasattr(ct, 'ready_players') or not isinstance(ct.ready_players, set):
-                        ct.ready_players = set()
-                    ct.ready_players.add(username)
-
-                # 遊戲結束後 : 選擇 lobby / Again
-                elif msg.startswith("post_game_again:"):
-                    username = msg.split(":")[1]
-
-                    if not ct.ready_offer_active:
-                        # 第一人發起 ready_offer
-                        print(f"[GameServer] 玩家 {username} 是發起人，廣播 ready_offer")
-                        await rad.handle_ready_offer(username)
+                    if ct.game_phase == "playing":
+                        ct.watch_players.add(username)
+                        print(f"[GameServer] 玩家 {username} 設為觀戰者，目前觀戰人數：{len(ct.watch_players)}")
                     else:
-                        # 其他人回應準備
-                        print(f"[GameServer] 玩家 {username} 回應 ready，加入 ready_players")
-                        ct.ready_players.add(username)
+                        print(f"[GameServer] 玩家 {username} 嘗試進入觀戰，但目前不是 playing 階段 → 忽略")
 
-                    # 如果所有人都準備好了，就重新開始
+                elif msg == "again":
+                    await rep.start_replay_offer(username)
+
+
+                    # 遊戲結束後待機，等待指令
                     if ct.game_phase == "post_gameover" and ct.ready_players.issuperset(ct.connected_players):
                         await gov.reset_game_to_waiting()
 
@@ -144,7 +149,7 @@ async def player_handler(websocket):
             except Exception as e:
                 print(f"[GameServer] 玩家 {username} 處理訊息錯誤: {e}，msg={msg}")
 
-    finally:
+    finally:       # 
         if username:
             ct.connected_players.discard(username)
             ct.player_websockets.pop(username, None)

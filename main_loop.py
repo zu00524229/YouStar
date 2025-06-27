@@ -113,6 +113,10 @@ async def run_game_loop(screen, client: GameClient):
                 pl.handle_playing_events(events, state, client, score, handle_quit)
 
         elif current_game_state in ["gameover", "post_gameover"]:
+            # 若後端已切換成 playing，強制跳出並重啟遊戲畫面
+            if client.game_state == "playing":
+                print("[MainLoop] 偵測到 replay 倒數結束，進入 playing 畫面")
+                continue
             result = ov.draw_gameover_screen(screen, handle_quit, client, events)
                 
             if result in ["again", "watch", "lobby"]:

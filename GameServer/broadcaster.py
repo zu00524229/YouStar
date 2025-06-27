@@ -70,17 +70,6 @@ async def _safe_send(player, ws_conn, msg):
         # 可選：從連線池中移除壞掉的連線
         # ct.player_websockets.pop(player, None)
 
-# 廣播遊戲結束後詢問其他玩家是否參加下局
-async def broadcast_ready_offer():
-    message = {
-        "event": "ready_offer"
-    }
-    for user, ws in ct.player_websockets.items():
-        try:
-            await ws.send(json.dumps(message))
-        except:
-            print(f"[廣播] 傳送 ready_offer 給 {user} 失敗")
-
 
 # 廣播最終 leaderboard（使用歷史最高分）
 async def broadcast_final_leaderboard():

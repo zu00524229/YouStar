@@ -41,6 +41,7 @@ async def reset_game_to_waiting():
     ct.game_phase = "waiting"
     ct.ready_offer_active = False
     ct.ready_players = set()
+    ct.watch_players.clear()        # 清除觀戰者
     ct.loading_start_time = None
     ct.game_start_time = None
     ct.gameover_start_time = None

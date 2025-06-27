@@ -10,8 +10,8 @@ import settings.context as ct
 from GameServer.gm_utils import get_remaining_time
 import GameServer.broadcaster as bc
 from GameServer.mole_thread import mole_sender_thread
-from GameServer.player_handler import player_handler
-from GameServer.gm_special_mole import special_mole_sender
+from GameServer.player_handler import player_handler, zombie_player_cleaner
+# from GameServer.gm_special_mole import special_mole_sender_thread
 import GameServer.gm_playing as play
 import GameServer.gm_loading as load
 import GameServer.gm_gameover as over
@@ -36,6 +36,7 @@ async def register_to_control():
                 # 傳送伺服器狀態給 中控 (背景工作)
                 asyncio.create_task(send_update_status(ws))
 
+
                 # 保持 websocket 連線
                 while True:
                     await asyncio.sleep(1)
@@ -44,26 +45,27 @@ async def register_to_control():
             print(f"[GameServer] 中控連線失敗或斷線，3 秒後重試: {e}")
             await asyncio.sleep(3)
 
+# 定時向中控伺服器（ControlServer）回報 GameServer 狀態
 async def send_update_status(ws):
     print("[Debug] send_update_status() 啟動")
     while True:
         try:
-            # print(f"[Debug] 傳送中控狀態：{ct.game_phase}, {len(ct.connected_players)}人")
+            # 建立要傳送的狀態資料，包含目前玩家數、觀戰人數、排行榜、剩餘時間、遊戲階段等
             await ws.send(json.dumps({
-                "type": "update_status",
-                "server_url": ct.MY_GAME_SERVER_WS,
-                "current_players": len(ct.connected_players - ct.watch_players),
-                "watching_players": len(ct.watch_players),         # 當前觀戰人數
-                "leaderboard": ct.leaderboard,
-                "remaining_time":  get_remaining_time(),
-                "game_phase": ct.game_phase
+                "type": "update_status",                           # 指定訊息類型為狀態更新
+                "server_url": ct.MY_GAME_SERVER_WS,                # 回報自己是誰（目前這台 GameServer 的網址）
+                "current_players": len(ct.connected_players - ct.watch_players),  # 實際參與遊戲的玩家數（排除觀戰）
+                "watching_players": len(ct.watch_players),         # 目前觀戰人數
+                "leaderboard": ct.leaderboard,                     # 最新排行榜資料（遊戲結束後產生）
+                "remaining_time": get_remaining_time(),            # 剩餘時間（僅 playing 階段才有意義）
+                "game_phase": ct.game_phase                        # 當前遊戲階段：waiting/loading/playing/gameover
             }))
         except Exception as e:
             print(f"[GameServer] 傳送 update_status 失敗：{e}")
+        # 每 1 秒回報一次狀態
         await asyncio.sleep(1)
 
 
-# ---------------------------------------------------
 # (核心)遊戲主控循環:控制 game_phase 狀態機 + 發 status_update 
 async def run_status_loop(ws):
 
@@ -94,8 +96,7 @@ async def run_status_loop(ws):
             if ct.game_phase == "waiting":
                 # print(f"[Debug] game_phase={ct.game_phase}, ready_offer_active={ct.ready_offer_active}, loading_start_time={ct.loading_start_time}")
                 await wait.check_start_waiting(now)
-                if ct.ready_offer_active and ct.loading_start_time is not None:
-                    await wait.handle_ready_offer(now)
+
 
             # --- loading -- 倒數完轉為 playing
             elif ct.game_phase == "loading":
@@ -132,20 +133,26 @@ async def run_status_loop(ws):
 # 啟動主流程
 async def main():
     # 特殊地鼠 async 任務(因為少出現 非同步就夠了)
-    asyncio.create_task(special_mole_sender())  # 委派
-    
+    # asyncio.create_task(special_mole_sender())  # 委派
+
+    # 特殊地鼠產生器
+    # thread2 = threading.Thread(target=special_mole_sender_thread, daemon=True)
+    # thread2.start()
+
     # 一般地鼠 執行續 任務(同步)
     thread = threading.Thread(target=mole_sender_thread, daemon=True)
     thread.start()
 
+    # 啟動殭屍連線清理
+    asyncio.create_task(zombie_player_cleaner())
     # 啟動中控註冊 & 狀態更新
     asyncio.create_task(register_to_control())
     # 每秒廣播剩餘時間（只在 playing 階段）
     asyncio.create_task(play.broadcast_playing_timer_loop())
 
     # 啟動玩家連線伺服器
-    server = await websockets.serve(player_handler, "0.0.0.0", 8001)
-    print("[GameServer] 等待玩家連線 (port 8001) ...")
+    server = await websockets.serve(player_handler, "0.0.0.0", ct.MY_PORT)
+    print(f"[GameServer] 等待玩家連線 (port {ct.MY_PORT}) ...")
     await asyncio.Future()  # run forever
 
 # run

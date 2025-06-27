@@ -63,10 +63,10 @@ def draw_watch_button(surface, x, y, mouse_x, mouse_y, watching_players=0):
     text_surface = font.render("Watch", True, (255, 255, 255))
     surface.blit(text_surface, text_surface.get_rect(center=button_rect.center))
 
-    # 顯示觀戰人數在按鈕右側
+    #  顯示觀戰人數在按鈕右側 + 標籤
     if watching_players > 0:
-        watch_count_surface = font.render(f"{watching_players}", True, (0, 255, 255))
-        watch_count_rect = watch_count_surface.get_rect(midleft=(button_rect.right + 8, button_rect.centery))
-        surface.blit(watch_count_surface, watch_count_rect)
+        label_surface = font.render(f"({watching_players}) watch", True, (0, 255, 255))
+        label_rect = label_surface.get_rect(midleft=(button_rect.right + 10, button_rect.centery))
+        surface.blit(label_surface, label_rect)
 
     return button_rect

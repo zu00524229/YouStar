@@ -2,15 +2,24 @@
 import asyncio
 import json
 import os
+import sys
+# print("[context] 成功載入 context.py，CONTROL_SERVER_WS =", CONTROL_SERVER_WS)
 
 shared_client = None
 ws_receiver_start_count = 0 # 檢查殭屍連線
 
 # 配置
-
 CONTROL_SERVER_WS = "ws://127.0.0.1:8765"
-# print("[context] 成功載入 context.py，CONTROL_SERVER_WS =", CONTROL_SERVER_WS)
-MY_GAME_SERVER_WS = "ws://127.0.0.1:8001/ws"
+
+# ========== 多開 GameServer 支援 ==========
+DEFAULT_BASE_PORT = 8000  # 基礎埠號
+try:
+    port_offset = int(sys.argv[1])
+except (IndexError, ValueError):
+    port_offset = 0  # 預設為 0
+
+MY_PORT = DEFAULT_BASE_PORT + port_offset
+MY_GAME_SERVER_WS = f"ws://127.0.0.1:{MY_PORT}/ws"
 
 # GameServer 狀態
 phase_changed_event = asyncio.Event()    # 等待進入 playing → mole_sender 才啟動
@@ -29,7 +38,12 @@ ready_offer_active = False              # 檢查 是否正在提供 ready 選項
 ready_players = set()                   # 當集合人數達標，啟動下一局
 observer_players = set()                 # 用來標記這些玩家不會餐與下一輪
 
-GAME_DURATION = 30                       # 遊戲時間 60s
+# replay 簡易版用
+replay_offer_active = False
+replay_start_time = 0
+
+
+GAME_DURATION = 60                       # 遊戲時間 60s
 game_start_time = None                  
 gameover_start_time = None
 click_effects = []                      # 滑鼠動畫

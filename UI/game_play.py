@@ -3,6 +3,7 @@
 # game_play_ui.py       :   game.py 遊戲中畫面  
 import pygame as pg
 import settings.game_settings as gs
+import settings.animation as ani
 import random
 import time
 import asyncio
@@ -31,23 +32,7 @@ def draw_live_leaderboard(screen, leaderboard_data):
         entry_surface = gs.RANK_FONT_SIZE.render(text, True, (gs.WHITE))
         screen.blit(entry_surface, (right_x, top_y + (idx + 1) * line_height))
 
-# 繪製飛字提示
-def draw_score_popups(screen):
-    popup_font = pg.font.SysFont(None, 36)
-    for popup in gs.score_popups:
-        color = popup.get("color", (255, 215, 0))
-        popup_surface = popup_font.render(popup["text"], True, color)
-        popup_surface.set_alpha(popup["alpha"])             # 設定透明度
-        screen.blit(popup_surface, (50, popup["y_pos"]))    # 顯示畫面
 
-    # 更新 popup 狀態
-    for popup in gs.score_popups:
-        popup["y_pos"] -= 0.5   # 向上移動
-        popup["alpha"] -= 0.5   # 逐漸透明
-        popup["alpha"] = max(0, popup["alpha"])     # 確保透明度不為負
-
-    # 清理掉已完全消失的飛字
-    gs.score_popups[:] = [p for p in gs.score_popups if p["alpha"] > 0]
 
 # 繪製地鼠
 def draw_moles(screen, state):
@@ -161,27 +146,13 @@ def draw_playing_screen(screen, state, client):
     draw_time(screen, state["remaining_time"])                  # 倒數時間顯示
     draw_live_leaderboard(screen, client.leaderboard_data)      # 即時排行榜
     draw_moles(screen, state)                                   # 普通/特殊地鼠顯示
-    draw_score_popups(screen)                                   # 擊中地鼠的分數彈出動畫
-    
-
-    # === 顯示打擊動畫 ===
-    now = time.time()
-    for effect in state["hit_effects"][:]:  # 複製一份避免中途移除出錯
-        pos = gs.GRID_POSITIONS[effect["position"]]
-        elapsed = now - effect["start_time"]
-
-        if elapsed < 0.2:
-            # 顯示簡單動畫，例如 HIT 字、hover 圈圈
-            hit_text = gs.BIG_FONT_SIZE.render("HIT!", True, (255, 0, 0))
-            screen.blit(hit_text, (pos[0] - 20, pos[1] - 40))
-            pg.draw.circle(screen, (255, 0, 0), pos, 65, 3)
-        else:
-            state["hit_effects"].remove(effect)
+    ani.draw_score_popups(screen)                               # 擊中地鼠的分數彈出動畫
+    ani.draw_hit_effects(screen, state)                         # 打擊動畫
 
     # 顯示一般地鼠的打擊判定區（紅色）
-    if state["mole_active"] and state["current_mole_position"] >= 0:
-        x, y = gs.GRID_POSITIONS[state["current_mole_position"]]
-        pg.draw.circle(screen, (255, 0, 0), (x, y), 60, 2)  # 紅色邊框，半徑60（與邏輯一致）
+    # if state["mole_active"] and state["current_mole_position"] >= 0:
+    #     x, y = gs.GRID_POSITIONS[state["current_mole_position"]]
+    #     pg.draw.circle(screen, (255, 0, 0), (x, y), 50, 2)  # 紅色邊框，半徑60（與邏輯一致）
 
     # # 顯示特殊地鼠的打擊判定區（青藍色）
     # if state["special_mole_active"] and state["current_special_mole_position"] >= 0:

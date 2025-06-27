@@ -3,6 +3,7 @@ import asyncio
 import websockets
 import json
 import time
+import settings.control_set as set
 
 # 假資料
 fake_users = {
@@ -76,7 +77,7 @@ async def handle_client(websocket):
                     "connected": True,              # 表示這台伺服器已連上
                     "current_players": 0,           # 初始人數為 0
                     "watching_players": 0,          # 觀看初始人數為 0
-                    "max_players": 3,               # 預設最大人數（可日後擴充）
+                    "max_players": set.DEFAULT_MAX_PLAYERS,  # 預設最大人數（可日後擴充）
                     # "in_game": False,             # 已淘汰欄位，改用 game_phase 判斷
                     "remaining_time": 0,            # 初始剩餘時間為 0（尚未開始遊戲）
                     "leaderboard": [],              # 初始排行榜為空
@@ -118,7 +119,7 @@ async def handle_client(websocket):
                             "current_players": status["current_players"],       # 人數
                             "max_players": status["max_players"],               # 最大人數
                             "game_phase": status.get("game_phase", "waiting"),   # 狀態
-                            "watching_players": status.get("watching_players", 0)
+                            "watching_players": status["watching_players"]      # 觀戰
                         })
 
                 await websocket.send(json.dumps({

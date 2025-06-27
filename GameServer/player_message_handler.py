@@ -7,6 +7,11 @@ import settings.context as ct
 import GameServer.broadcaster as bc
 
 async def handle_hit(msg, username):
+    if username in ct.watch_players:
+        print(f"[GameServer] [阻止] 觀戰者 {username} 嘗試打地鼠，忽略此操作")
+        return
+
+
     parts = msg.split(":")
     if len(parts) < 2:
         print(f"[GameServer] hit 訊息格式錯誤：{msg}")
