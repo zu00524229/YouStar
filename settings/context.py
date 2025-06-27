@@ -44,6 +44,8 @@ replay_start_time = 0
 
 
 GAME_DURATION = 60                       # 遊戲時間 60s
+MOLE_SPAWN_INTERVAL = 1.5                # 地鼠出現頻率（秒）
+MOLE_SPAWN_INTERVAL_RANGE = (0.8, 1.5)   # 地鼠隨機秒數
 game_start_time = None                  
 gameover_start_time = None
 click_effects = []                      # 滑鼠動畫

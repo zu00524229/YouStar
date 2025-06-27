@@ -38,6 +38,7 @@ def mole_sender_thread():
             except RuntimeError as e:
                 print(f"[MoleThread] 廣播失敗：{e}")
 
-            time.sleep(1.5)  # 控制出現頻率
+            # time.sleep(ct.MOLE_SPAWN_INTERVAL)  # 控制出現頻率
+            time.sleep(random.uniform(*ct.MOLE_SPAWN_INTERVAL_RANGE))  # 隨機頻率出現
         else:
             time.sleep(0.2)  # 非 playing 階段稍作休息
