@@ -15,11 +15,11 @@ async def handle_server_selection(event, server_buttons, client):
         # 觀戰邏輯:只有點到 watch_button_rect 才進入
         if watch_button_rect and watch_button_rect.collidepoint(mouse_x, mouse_y):
             print(f"[Lobby] 玩家選擇連線到 GameServer: {url}")
-            client.server_url = url
             client.is_watching = True       # 觀戰者
+            client.server_url = url
             client.score = 0                # 分數0
-            await client.send_watch(url)
-            # await client.connect_to_server()
+            # await client.send_watch(url)
+            await client.connect_to_server()    # 已有watch
             await client.start_ws_receiver()
             print(f"[Lobby] 玩家點選 GameServer，呼叫 start_ws_receiver()，client ID: {id(client)}")
             client.sync_game_state()
@@ -36,7 +36,7 @@ async def handle_server_selection(event, server_buttons, client):
                     print(f"[Lobby] 玩家選擇連線到 GameServer: {url}")
                     client.server_url = url
                     client.is_watching = False      # 非觀戰者
-                    await client.connect_to_server()
+                    await client.connect_to_server()    # 已有watch
                     await client.start_ws_receiver()
                     client.sync_game_state()
                     print(f"[Lobby] 伺服器處於 {server_state}，進入遊戲模式")

@@ -55,7 +55,13 @@ async def broadcast_status_update():
 
 # 廣播任意訊息給所有玩家
 async def broadcast(message_dict):
-    msg = json.dumps(message_dict)
+    try:
+        msg = json.dumps(message_dict)
+    except Exception as e:
+        print("[Broadcast] JSON 轉換錯誤！內容如下：")
+        print(message_dict)
+        print("錯誤詳情：", e)
+        return  # 直接跳出，不發送壞訊息
     tasks = []
     for player, ws in ct.player_websockets.items():
         tasks.append(_safe_send(player, ws, msg))

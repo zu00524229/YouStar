@@ -50,7 +50,7 @@ async def main():
         # 進入遊戲流程
         if result == "play":
             result = await lp.run_game_loop(screen, client)
-            client.ready_mode = "none"      # 重設狀態供下一輪使用
+
 
         elif result == "lobby":
             await lp.handle_quit_to_lobby(screen, client)

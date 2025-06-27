@@ -42,7 +42,7 @@ def special_mole_sender_thread():
             ct.current_special_mole = {
                 "mole_id": ct.current_special_mole_id,
                 "position": random.choice(available_positions),
-                "mole_type": mole_data["name"],
+                "mole_type": ct.current_special_mole.get["name"],
                 "score": mole_data["score"],
                 "color": mole_data["color"],
                 "spawn_time": time.time(),

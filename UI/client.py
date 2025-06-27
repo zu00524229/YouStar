@@ -29,9 +29,6 @@ class GameClient:
         self.ready_offer_total_players = 0
 
 
-        # 玩家選擇再玩 / 觀戰 / 回大廳的意圖
-        self.ready_mode = None
-
         # 觀戰模式
         self.is_watching = False
 
@@ -444,9 +441,9 @@ class GameClient:
                 gs.score_popups.append(popup)
 
     # 觀戰模式 watch
-    async def send_watch(self, server_url):
-        self.server_url = server_url
-        self.is_watching = True
-        await self.connect_to_server()
+    # async def send_watch(self, server_url):
+    #     self.server_url = server_url
+    #     self.is_watching = True
+    #     await self.connect_to_server()
 
         

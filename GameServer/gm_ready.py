@@ -7,6 +7,12 @@ import asyncio
 # 開始遊戲
 async def handle_ready(username):
     # 玩家點擊 Ready 時呼叫
+
+    # 避免觀戰者加入 ready
+    if username in ct.watch_players:
+        print(f"[GameServer] 觀戰者 {username} 不可參加 Ready，忽略")
+        return
+    
     if not hasattr(ct, "ready_players") or not isinstance(ct.ready_players, set):
         ct.ready_players = set()
     

@@ -37,21 +37,21 @@ async def handle_quit_to_lobby(screen, client):
     client.ready_offer_started = False
     client.ready_offer_joined_players = set()
     client.game_state = "lobby"
-    client.ready_mode = "lobby"
+
 
 
 # 當前機臺玩家人數
 def player_count(surface, current_players):
-    players_surface = gs.FONT_SIZE.render(f"Players: {current_players}", True, (255, 255, 0))
+    players_surface = gs.SMALL_FONT_SIZE.render(f"Players: {current_players}", True, (255, 255, 0))
     players_rect = players_surface.get_rect(bottomright=(gs.WIDTH - 20, gs.HEIGHT - 20))
     surface.blit(players_surface, players_rect)
 
 # 當前觀戰人數
 def watching_count(surface, watching_players):
-    watch_surface = gs.FONT_SIZE.render(f"Watching: {watching_players}", True, (0, 255, 255))  # 青藍色
+    watch_surface = gs.SMALL_FONT_SIZE.render(f"Viewers: {watching_players}", True, (180, 200, 220))  
     watch_rect = watch_surface.get_rect(bottomleft=(20, gs.HEIGHT - 20))  # 左下角
     surface.blit(watch_surface, watch_rect)
-
+    
 # 等待GameServer 狀態刷新
 def wait_until_state_not_gameover(client, delay_ms = 100):
     attempts = 0
@@ -71,7 +71,9 @@ async def run_game_loop(screen, client: GameClient):
     await asyncio.sleep(0.2)
     clock = pg.time.Clock()
 
-    wait_until_state_not_gameover(client)
+    # 如果不是觀察者才等待刷新狀態
+    if not client.is_watching:
+        wait_until_state_not_gameover(client)
 
     running = True
     while running:

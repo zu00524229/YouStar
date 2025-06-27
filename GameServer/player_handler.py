@@ -63,18 +63,35 @@ async def zombie_player_cleaner():
 
 # 玩家處理器 GameServer 控制
 async def player_handler(websocket):
-    print("[Debug] player_handler() 開始")
+    # print("[Debug] player_handler() 開始")
     
-    username = await websocket.recv()       # 接收 client connect_to_server() 資料
-    # print(f"[GameServer] 玩家 {username} 建立 WebSocket ID = {id(websocket)}")
-    print(f"[GameServer] 玩家 {username} 連線進來")
+    msg = await websocket.recv()
 
-    ct.connected_players.add(username)
+    # 如果是觀戰者
+    if msg == "watch":
+        username = f"watcher_{len(ct.watch_players)+1}"  # 自動命名
+        if ct.game_phase == "playing":
+            ct.watch_players.add(username)
+            print(f"[GameServer] 觀戰者加入：{username}")
+        else:
+            print(f"[GameServer] 非 playing 階段，不接受觀戰者 → 關閉連線")
+            await websocket.close()
+            return
+
+    # 如果是玩家
+    else:
+        username = msg
+        ct.connected_players.add(username)
+        # 通知 ControlServer：玩家連線
+        asyncio.create_task(notify_control_player_joined(username))
+        print(f"[GameServer] 玩家加入：{username}")
+
+    # ct.connected_players.add(username)
     ct.player_websockets[username] = websocket
     ct.post_gameover_cooldown = False
 
     # 通知 ControlServer：玩家連線
-    asyncio.create_task(notify_control_player_joined(username))
+    # asyncio.create_task(notify_control_player_joined(username))
 
     # 傳送目前的 GameServer 狀態給新加入的玩家
     try:

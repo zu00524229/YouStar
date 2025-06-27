@@ -27,7 +27,7 @@ def draw_waiting_screen(screen, events, client):
     # === 地鼠種類與分數顯示（底部說明） ===
     start_x = 120           # 每個地鼠說明的起始 x 位置
     y = 80                  # 垂直位置（畫面頂部往下 80 像素）
-    spacing = 160           # 每組圓形 + 文字之間的水平距離
+    spacing = 140           # 每組圓形 + 文字之間的水平距離
     radius = 15             # 圓形半徑，越大圓越大，可以調整這個數字來改大小
 
     for i, mole in enumerate(gs.MOLE_TYPES):

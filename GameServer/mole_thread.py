@@ -33,6 +33,7 @@ def mole_sender_thread():
 
             # 廣播給所有玩家
             try:
+                print("[Debug] 廣播前 current_mole：", ct.current_mole)
                 asyncio.run(broadcast({"event": "mole_update", "mole": ct.current_mole}))
                 # print(f"[MoleThread] 廣播地鼠：{ct.current_mole}")
             except RuntimeError as e:
