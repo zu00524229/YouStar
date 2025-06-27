@@ -66,6 +66,5 @@ async def main():
             break
 
 # 啟動程式主入口：使用 asyncio.run() 啟動 event loop
-# 這是 Python 3.7+ 執行 async 程式的標準做法，會建立 asyncio event loop
 if __name__ == "__main__":
     asyncio.run(main())

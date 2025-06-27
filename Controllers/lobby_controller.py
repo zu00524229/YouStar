@@ -3,7 +3,8 @@ import pygame as pg
 import settings.game_settings as gs
 import asyncio
 import time
-from UI.game_lobby import render_server_status_ui, draw_lobby_title_and_hint
+# from UI.game_lobby import render_server_status_ui, draw_lobby_title_and_hint
+import UI.game_lobby as gl
 import settings.animation as ani
 
 
@@ -31,7 +32,15 @@ async def handle_server_selection(event, server_buttons, client):
             server_list = await client.get_server_list()
             matching = [s for s in server_list if s['server_url'] == url]
             if matching:
-                server_state = matching[0].get("game_phase", "")
+                server_info = matching[0]
+                server_state = server_info.get("game_phase", "")
+                
+                # 判斷人數限制(中控資料)
+                if server_info['current_players'] >= server_info['max_players']:
+                    print("[Lobby] 伺服器人數已滿，請等待或點 Watch 觀戰")
+                    gl.set_lobby_message("伺服器人數已滿，請點 Watch 觀戰")
+                    return None
+
                 if server_state in ["waiting", "loading"]:
                     print(f"[Lobby] 玩家選擇連線到 GameServer: {url}")
                     client.server_url = url
@@ -67,10 +76,10 @@ async def show_lobby(screen, client, handle_quit):
             server_list = await client.get_server_list()
             last_refresh_time = time.time()
 
-        draw_lobby_title_and_hint(screen)
+        gl.draw_lobby_title_and_hint(screen)
 
         for i, server in enumerate(server_list):
-            box_rect, watch_button_rect = render_server_status_ui(
+            box_rect, watch_button_rect = gl.render_server_status_ui(
                 screen, server, 150 + i * 100, mouse_x, mouse_y, i
             )
             server_buttons.append((box_rect, watch_button_rect, server["server_url"]))
@@ -90,5 +99,6 @@ async def show_lobby(screen, client, handle_quit):
                     return "play"
 
         ani.draw_click_effects(screen)
+        gl.draw_lobby_message(screen, gl.lobby_message, gl.lobby_message_start)
         pg.display.flip()
         pg.time.Clock().tick(30)

@@ -43,7 +43,7 @@ GRID_POSITIONS = [
 
 # 地鼠種類
 MOLE_TYPES = [
-    {"name": "Mole", "color": (200, 100, 100), "score": +3},                    # 普通地鼠
+    {"name": "Mole", "color": (200, 100, 100), "score": +5},                    # 普通地鼠
     {"name": "Gold Mole", "color": 	(255, 245, 180), "score": +8},              # 黃金地鼠
     {"name": "Bomb Mole", "color": (92, 92, 92), "score": -5},                  # 炸彈地鼠
     {"name": "Diamond Mole", "color": (0, 255, 255), "score": +15},             # 特殊地鼠
