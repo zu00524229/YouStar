@@ -46,6 +46,7 @@ MOLE_TYPES = [
     {"name": "Mole", "color": (200, 100, 100), "score": +3},                    # 普通地鼠
     {"name": "Gold Mole", "color": 	(255, 245, 180), "score": +8},                 # 黃金地鼠
     {"name": "Bomb Mole", "color": (92, 92, 92), "score": -5},                  # 炸彈地鼠
+    {"name": "Diamond Mole", "color": (0, 255, 255), "score": +15},             # 特殊地鼠
     {"name": "Joker Mole", "color": (158, 79, 0), "score": 0, "score_range": (-15, 15)},   # 小丑地鼠
 ]
 

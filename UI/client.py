@@ -129,7 +129,7 @@ class GameClient:
             if data.get("type") == "get_server_list_response":
                 server_list.extend(data.get("server_list", []))
 
-    # 建立 GameServer 的 WebSocket 連線 + 啟動接收機制任務   
+    # 建立 GameServer 的 WebSocket 連線 + 啟動接收機制任務 (watch)
     async def connect_to_server(self):
         if not self.server_url:
             print("[前端] server_url 尚未設定，無法連線 GameServer")
@@ -147,9 +147,6 @@ class GameClient:
             self.ws_conn = await websockets.connect(self.server_url)
             print(f"[前端] 成功連線 GameServer：{self.server_url}")
                         
-            # 傳送玩家姓名給 Gameserver 做註冊(登入)
-            # await self.ws_conn.send(str(self.username))  # 文字安全轉換
-
             # === 發送觀戰或玩家登入訊息 ===
             if self.ws_conn:
                 if self.is_watching:
@@ -175,8 +172,6 @@ class GameClient:
             print(f"[前端] ws_receiver 啟動中，使用連線 web ID: {id(websocket_mole)}")
             print("[前端] WebSocket 連線 GameServer 成功")
 
-            # 傳送登入資訊
-            # await websocket_mole.send(self.username)
 
             # 接收 GameServer 發來的訊息
             async for msg in websocket_mole:
@@ -223,18 +218,15 @@ class GameClient:
                                 self.current_special_mole_duration = mole.get("duration", 3)
                                 self.current_special_mole_spawn_time = mole.get("spawn_time", time.time())
 
-                    # ---------- 接收後端地鼠得分更新 ---------
+                    # ---------- 自己的分數更新 ---------
                     elif data.get("event") == "score_update":
                         score_username = data.get("username")
                         score = data.get("score", 0)
                         if score_username == self.username:
                             self.score = score  # 更新自己的分數
                             print(f"[前端] 自己分數更新：{score}")
-                        else:
-                            # print(f"[前端] 收到其他玩家 {score_username} 的分數更新（忽略）")
-                            pass    # 忽略其他玩家的分數更新（如果需要同步顯示再加
 
-                    # 當收到後端的得分更新（分數提示）時顯示飛字
+                    # ---------- 分數飛字提示 ----------
                     elif data.get("event") == "score_popup":
                         # print("[前端] 收到 score_popup 飛字事件！")
                         score = data.get("score", 0)
@@ -245,13 +237,13 @@ class GameClient:
                             # print(f"[前端] 飛字提示：{mole_name} +{score}")
                             self.show_score_popup(score, mole_id, mole_name)
 
-                    # ----------  遊戲結束排行榜 ----------
+                    # ----------  最終排行榜 ----------
                     elif data.get("event") == "final_leaderboard":
                         print("[前端] 收到最終排行榜資料")
                         with self.state_lock:
                             self.final_leaderboard_data = data.get("leaderboard", [])
 
-                    # ----------  遊戲狀態更新 ----------
+                    # ----------  遊戲狀態更新（最常收到 ----------
                     elif data.get("event") == "status_update":
                         # print(f"[前端] 收到 status_update：{data}")
                         game_phase = data.get("game_phase", "waiting")
@@ -262,12 +254,18 @@ class GameClient:
                             self.current_players = data.get("current_players", 0)
                             self.watching_players = data.get("watching_players", 0)     # 觀戰
                             self.leaderboard = data.get("leaderboard", [])
+
+                             # 若狀態從非 playing ➜ playing，要清空飛字殘留
                             if self.game_state != "playing" and game_phase == "playing":
                                 print("[Client] 狀態切換為 playing，清空 score_popups")
                                 gs.score_popups.clear() # 清除上局飛字殘留
+
+                            # 更新即時排行榜資料
                             if self.leaderboard:
                                 self.leaderboard_data = self.leaderboard
                                 # print("[前端] 接收到即時 leaderboard 資料：", self.leaderboard)
+                            
+                            # 更新 client 狀態（會影響畫面顯示）    
                             self.game_state = game_phase
                             # print(f"[前端] 更新 client.game_state = {self.game_state}")
 
@@ -311,41 +309,42 @@ class GameClient:
         print(f"[Debug] 第 {ct.ws_receiver_start_count} 次啟動 ws_receiver")
 
 
-
-
     # ---------- Lobby 切換與連線重置 ----------
     def disconnect_from_server(self):
         # 關閉與 GameServer 的 WebSocket
         try:
             if self.ws_conn:
-                loop = self.ws_conn.loop
+                loop = self.ws_conn.loop    # 取得該連線的 asyncio event loop
                 loop.call_soon_threadsafe(asyncio.create_task, self.ws_conn.close())
                 print("[Client] 已要求關閉 WebSocket 連線")
         except Exception as e:
             print(f"[Client] 關閉 WebSocket 發生錯誤: {e}")
         finally:
-            self.ws_conn = None
-            self.ws_started = False
+            self.ws_conn = None         # 清除 WebSocket
+            self.ws_started = False     # 標記為未啟動狀態
 
-        # 清空狀態
-        self.game_state = "lobby"
-        self.current_mole_id = -1
-        self.ready_offer = None
-        self.joined_ready = False
-        self.leaderboard_data = []
+        # 重設 client 狀態，切換回 lobby 畫面
+        self.game_state = "lobby"         # 切換狀態為大廳
+        self.current_mole_id = -1         # 清除當前地鼠 ID（避免誤判打擊）
+        self.ready_offer = None           # 清除 ready 倒數資訊
+        self.joined_ready = False         # 標記玩家未加入 ready
+        self.leaderboard_data = []        # 清除排行榜資料
         print("[Client] 已斷開與 GameServer 的連線並重設狀態")
 
 
-
+    # 帳號驗證將資料傳給中控
     def quick_login_check(self):
         try:
             async def _check():
+                # 與中控伺服器建立 WebSocket 連線
                 async with websockets.connect(ct.CONTROL_SERVER_WS) as ws:
+                    # 傳送登入請求
                     await ws.send(json.dumps({
                         "type": "login",
                         "username": self.username,
                         "password": self.password
                     }))
+                    # 接收伺服器回應
                     response = await ws.recv()
                     data = json.loads(response)
                     return data.get("type") == "login_response" and data.get("success")
@@ -389,7 +388,7 @@ class GameClient:
         else:
             print("[前端] ws_conn 無效或已關閉，無法發送 hit")
 
-    # 傳送特殊地鼠打擊事件給後端 GameServer
+    # 傳送特殊地鼠打擊事件給後端 GameServer (已關閉)
     async def send_special_hit(self, mole_id):
         if self.ws_conn:
             msg = f"special_hit:{mole_id}"      # 只送打擊判定
@@ -449,7 +448,5 @@ class GameClient:
         self.server_url = server_url
         self.is_watching = True
         await self.connect_to_server()
-        if self.is_watching and self.ws_conn:
-            await self.ws_conn.send("watch")
-            print("[Client] 送出觀戰指令 watch 給 GameServer")
+
         

@@ -14,7 +14,8 @@ def draw_waiting_screen(screen, events, client):
     tutorial_text = [
         "歡迎來到打地鼠遊戲！",
         "點擊地鼠來獲得分數。",
-        "小心炸彈地鼠，金色與鑽石地鼠會加高分！",
+        "小心炸彈地鼠，金色會加高分！",
+        "或是想試試手氣，褐色的賭博地鼠!",
         "準備好就按下『Ready』吧！"
     ]
 
@@ -22,15 +23,36 @@ def draw_waiting_screen(screen, events, client):
         tutorial_surface = gs.CH_FONT_SIZE.render(line, True, gs.WHITE)
         tutorial_rect = tutorial_surface.get_rect(center=(gs.WIDTH // 2, gs.HEIGHT // 2 - 50 + i * 35))
         screen.blit(tutorial_surface, tutorial_rect)
+
+    # === 地鼠種類與分數顯示（底部說明） ===
+    start_x = 120           # 每個地鼠說明的起始 x 位置
+    y = 80                  # 垂直位置（畫面頂部往下 80 像素）
+    spacing = 160           # 每組圓形 + 文字之間的水平距離
+    radius = 15             # 圓形半徑，越大圓越大，可以調整這個數字來改大小
+
+    for i, mole in enumerate(gs.MOLE_TYPES):
+        x = start_x + i * spacing
+        pg.draw.circle(screen, mole["color"], (x, y), radius)
+        score = mole.get("score_range", mole["score"])  # 小丑地鼠用 -15~15 顯示
+        score_str = f"{score[0]}~{score[1]}" if isinstance(score, tuple) else f"{score:+d}"
+        text = f" : {score_str}"
+        text_surface = gs.SMALL_FONT_SIZE.render(text, True, gs.WHITE)
+        screen.blit(text_surface, (x + 20, y - 10)) # 文字在圓形右側水平對齊
         
     # === Ready 按鈕區域 ===
-    ready_button = pg.Rect(gs.WIDTH // 2 - 100, gs.HEIGHT // 2 + 110, 200, 60)
+    button_width, button_height = 100, 30
+    ready_button = pg.Rect(
+        gs.WIDTH // 2 - button_width // 2,  # X 軸置中
+        gs.HEIGHT // 2 + 140,              # Y 軸比原本再往下移
+        button_width,
+        button_height
+    )
     mouse_pos = pg.mouse.get_pos()
     is_hover = ready_button.collidepoint(mouse_pos)
 
     # 按鈕顏色與繪製
     button_color = gs.HOVAR if is_hover else gs.GREEN
-    pg.draw.rect(screen, button_color, ready_button)
+    pg.draw.rect(screen, button_color, ready_button, border_radius=12)
 
     # 按鈕文字（置中）
     btn_text = gs.SMALL_FONT_SIZE.render("Ready", True, gs.WHITE)

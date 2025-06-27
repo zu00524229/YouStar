@@ -52,10 +52,6 @@ async def main():
             result = await lp.run_game_loop(screen, client)
             client.ready_mode = "none"      # 重設狀態供下一輪使用
 
-        # again → 會再進入 lobby → play → loop.run_game_loop（再次執行整個流程）
-        # elif result == "again":
-        #     continue
-
         elif result == "lobby":
             await lp.handle_quit_to_lobby(screen, client)
             continue    # 回到 while result == "lobby"，重新選擇伺服器

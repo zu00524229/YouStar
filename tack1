@@ -1,50 +1,87 @@
-| 任務                    | 說明                                     | 技術建議                                    | 是否獨立？          |                      |
-| --------------------- | -------------------------------------- | --------------------------------------- | -------------- | -------------------- |
-| 🎯 地鼠發送（mole\_sender） | 產生、廣播地鼠 → 必須讓每位玩家畫面同步                  | ✅ 可用 async，但因為固定時間迴圈 + 高 CPU 建議用 Thread | ✅ 是            |                      |
-| 🧠 接收玩家訊息（WebSocket）  | 玩家打擊、ready、final、join\_ready           | ✅ 用 async → `player_handler` 已設計好       | ✅ 是            |                      |
-| 🏆 更新排行榜              | 每打中一隻地鼠就更新 → 廣播排行榜                     | ✅ 用 async，因為打擊事件可能很多                    | ✅ 是（廣播部分可封裝）   |                      |
-| 📡 發送 status 給玩家      | 傳送：剩餘時間、當前階段、排行榜                       | 用意：畫面右上顯示「時間 / phase」，維持同步              | ✅ async        | ✅ 是（你可調整頻率，如每 0.5 秒） |
-| ⏱️ 遊戲階段切換             | waiting → loading → playing → gameover | **必須同步、排他進行**                           | ✅ async 模組化已完成 | ✅ 是                  |
+login_ui.py
+    ↓ （帳號密碼登入）
+login_controller.py
+    ↓ （與 ControlServer 建立連線，傳送登入請求）
+成功 → 回傳 GameClient（含伺服器清單）
 
-完整遊戲流程概覽】（前端角度）
-登入畫面（login_ui.py）
+    ↓
+lobby_ui.py
+    ↓
+lobby_controller.py
+    ├── 點選伺服器框框：若處於 waiting/loading → connect_to_server()
+    └── 點 Watch 按鈕：直接觀戰 → send_watch() + start_ws_receiver()
 
-玩家輸入帳號密碼
+    ↓
+進入遊戲主畫面（尚未貼出）
 
-傳送至 ControlServer 驗證
 
-取得 GameServer 清單 → 轉跳大廳
+1. 架構類型：Client-Server Architecture + WebSocket
+使用 Client-Server 架構 分為三端：
 
-遊戲大廳畫面（game_lobby.py）
+前端 Client（Pygame）
 
-顯示所有 GameServer 狀態與人數
+中控 Control Server（負責帳號驗證與伺服器管理）
 
-玩家點選某個 server → 建立 WebSocket → 轉跳「等待/準備」畫面
+遊戲伺服器 Game Server（每場遊戲的執行與狀態管理）
 
-進入 GameServer 後等待畫面（Waiting Phase）（game_waiting.py）
+前後端透過 WebSocket（全雙工通訊） 持續同步遊戲狀態與即時事件（如地鼠出現、打擊、排行榜更新）
 
-等待其他人加入
+2. 通訊協定與即時互動：WebSocket Protocol
+使用 websockets 套件實作 WebSocket 通訊：
 
-可以點「Again / Ready」→ 送出 "ready" 訊息給 GameServer
+低延遲、持久連線 適用於遊戲場景
 
-Loading 畫面（Loading Phase）（game_loading.py 或主循環直接畫）
+使用 JSON 格式傳輸指令與資料包（type, username, score 等）
 
-所有人 ready 後進入 loading 倒數（10秒）
+控制訊息類型如：login, status_update, hit, replay_offer, final
 
-顯示倒數畫面
+3. 非同步處理：AsyncIO + Event Loop
+以 asyncio 實作非同步程式邏輯：
 
-倒數結束後轉入遊戲畫面
+多個任務可同時運作（倒數、廣播、WebSocket 接收等）
 
-遊戲進行畫面（Playing Phase）（game_play_ui.py）
+使用 async def, await 搭配背景 event loop 管理流程與延遲任務
 
-顯示分數、時間、地鼠
+結合 asyncio.Event 進行跨模組同步（如 phase_changed_event 通知地鼠產生）
 
-玩家打擊 → 分數上傳
+4. 遊戲開發：Pygame 作為前端引擎
+使用 pygame 製作前端畫面與互動 UI：
 
-遊戲結束畫面（GameOver Phase）（game_gameover_ui.py）
+畫面更新與事件監聽：screen.fill, pg.event.get(), pg.display.flip()
 
-顯示排行榜與操作按鈕
+動畫效果管理：模組化 animation.py 控制點擊特效等
 
-選擇 Again → 再走一次 ready 流程
+狀態管理整合：分為登入畫面、伺服器大廳、遊戲中、結束畫面
 
-選擇 Lobby → 回到大廳選 GameServer
+5. 遊戲狀態控制：Finite State Machine（狀態機）設計
+遊戲階段以 狀態機模式 控制流轉（game_phase）：
+
+waiting → loading → playing → gameover → post_gameover
+
+每個階段由獨立模組處理，如：
+
+gm_loading.py: 進入前倒數
+
+gm_playing.py: 計時與打擊監控
+
+gm_gameover.py: 排行結算與重置
+
+管理每階段的開始時間、倒數邏輯與事件觸發條件
+
+6. 多人同步與即時資料：Shared Context + Broadcasting
+使用 context.py 作為共享狀態容器（等同於 singleton 狀態服務）：
+
+包含：目前遊戲階段、倒數時間、玩家清單、分數表、WebSocket 清單
+
+使用 broadcaster.py 負責統一廣播所有玩家狀態更新，避免重複邏輯
+
+7. 模組化與責任分離：MVC+服務導向分層
+採取 功能模組化 + 單一職責原則（SRP）：
+
+client.py: 封裝前端 GameClient 的通訊與狀態
+
+login_controller.py: 管理帳號登入與伺服器清單
+
+lobby_controller.py: 處理伺服器選擇與觀戰流程
+
+gm_*.py: 按照遊戲階段切分每個邏輯單元，維持易讀性與可維護性

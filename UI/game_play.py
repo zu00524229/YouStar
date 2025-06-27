@@ -33,6 +33,27 @@ def draw_live_leaderboard(screen, leaderboard_data):
         screen.blit(entry_surface, (right_x, top_y + (idx + 1) * line_height))
 
 
+# 在遊戲畫面左上角顯示地鼠顏色與分數說明。
+def draw_mole_info(screen):
+    x_start = 40              # 起始 X 座標，靠左側
+    y = 90                    # Y 座標（在 Score 文字下方）
+    spacing = 130             # 每組地鼠圓圈與文字的水平間距
+    radius = 15               # 圓圈半徑，調整大小用
+
+    for i, mole in enumerate(gs.MOLE_TYPES):
+        x = x_start + i * spacing
+
+        # 畫出顏色圓圈
+        pg.draw.circle(screen, mole["color"], (x, y), radius)
+
+        # 顯示分數（±格式或範圍）
+        score = mole.get("score_range", mole["score"])
+        score_str = f"{score[0]}~{score[1]}" if isinstance(score, tuple) else f"{score:+d}"
+
+        # 顯示文字（圖案＋分數）
+        text = f" : {score_str}"
+        text_surface = gs.SMALL_FONT_SIZE.render(text, True, gs.WHITE)
+        screen.blit(text_surface, (x + radius + 8, y - 10))  # 文字靠右偏上對齊
 
 # 繪製地鼠
 def draw_moles(screen, state):
@@ -142,6 +163,7 @@ def handle_playing_events(events, state, client, score, handle_quit):
 def draw_playing_screen(screen, state, client):
     mouse_x, mouse_y = pg.mouse.get_pos()
     
+    draw_mole_info(screen)
     draw_score(screen, client.score)                            # 分數顯示
     draw_time(screen, state["remaining_time"])                  # 倒數時間顯示
     draw_live_leaderboard(screen, client.leaderboard_data)      # 即時排行榜

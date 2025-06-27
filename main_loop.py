@@ -95,7 +95,7 @@ async def run_game_loop(screen, client: GameClient):
         screen.fill(gs.BLACK)
 
         
-        if current_game_state in ["waiting", "loading", "playing", "gameover"]:
+        if current_game_state in ["waiting", "loading", "playing", "gameover","post_gameover"]:
             player_count(screen, current_players)   # 右下角當前 GameServer 人數
             watching_count(screen, watching_players)     # 左下角顯示 Watching
         

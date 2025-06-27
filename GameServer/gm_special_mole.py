@@ -7,7 +7,7 @@ import settings.context as ct
 import settings.game_settings as gs
 from GameServer.broadcaster import broadcast
 
-# === 特殊地鼠產生器 ===
+# === 特殊地鼠產生器 === (尚未使用)
 def special_mole_sender_thread():
     while True:
         # print("[GameServer] special_mole_sender 等待 phase_changed_event（僅在 playing 啟動）")
