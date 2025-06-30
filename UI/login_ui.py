@@ -67,10 +67,9 @@ async def login_screen(screen):
 
                 client = await login_to_control(user_text, pass_text)
 
-                if client and client.server_list: # 如果成功登入 且 server_list 為空(代表伺服器可以連)
-                    # ct.shared_client = client
-                    # client.server_url = client.server_list[0]["server_url"]  # 指定要連哪一台 GameServer 只能送server_url
-                    # await client.connect_to_server()  # 不要連
+                if client: # 如果成功登入 且 server_list 為空(代表伺服器可以連)
+                    if not client.server_list:
+                        print("[Login_UI] 成功登入，但目前無 GameServer 可用")
                     return client
                 else:
                     message = "login ERROR"

@@ -2,9 +2,11 @@
 import pygame as pg
 # import asyncio
 import settings.game_settings as gs
+import settings.animation as ani
 
 def draw_waiting_screen(screen, events, client):
     ready_clicked = False
+    go_lobby_clicked = False    # 初始設回False
     # === 背景文字 ===
     waiting_surface = gs.FONT_SIZE.render("Waiting for players...", True, gs.WHITE)
     waiting_rect = waiting_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT / 2 - 100))
@@ -41,9 +43,10 @@ def draw_waiting_screen(screen, events, client):
         
     # === Ready 按鈕區域 ===
     button_width, button_height = 100, 30
+    # Ready 按鈕位置往左移
     ready_button = pg.Rect(
-        gs.WIDTH // 2 - button_width // 2,  # X 軸置中
-        gs.HEIGHT // 2 + 140,              # Y 軸比原本再往下移
+        gs.WIDTH // 2 - 120,     # 向左偏移
+        gs.HEIGHT // 2 + 140,
         button_width,
         button_height
     )
@@ -59,13 +62,37 @@ def draw_waiting_screen(screen, events, client):
     btn_rect = btn_text.get_rect(center=ready_button.center)
     screen.blit(btn_text, btn_rect)
 
+    # === LOBBY 按鈕 ===
+    # Lobby 按鈕位置往右移
+    lobby_button = pg.Rect(
+        gs.WIDTH // 2 + 20,      # 向右偏移
+        gs.HEIGHT // 2 + 140,
+        100,
+        30
+    )
+
+    is_hover_lobby = lobby_button.collidepoint(mouse_pos)
+    pg.draw.rect(screen, gs.HOVAR if is_hover_lobby else gs.WHITE, lobby_button, border_radius=12)
+    lobby_text = gs.SMALL_FONT_SIZE.render("Lobby", True, gs.BLACK)
+    screen.blit(lobby_text, lobby_text.get_rect(center=lobby_button.center))
+
     # === 處理滑鼠點擊 Ready 按鈕 ===
     for event in events:
-        if event.type == pg.MOUSEBUTTONDOWN and ready_button.collidepoint(event.pos):
-            print("[前端] 玩家按下 Ready")
-            ready_clicked = True
-            # asyncio.create_task(client.send_ready())
-            client.send_ready()
-            print("[前端] Ready 已發送給後端")
+        if event.type == pg.MOUSEBUTTONDOWN:
+            if ready_button.collidepoint(event.pos):
+                if client.is_watching:
+                    print("[提示] 觀戰者不能按 Ready，請返回大廳重新加入")
+                    ani.set_message("請回大廳重新加入成為玩家或等待新玩家加入")  # 顯示視覺訊息
+                else:
+                    print("[前端] 玩家按下 Ready")
+                    ready_clicked = True
+                    client.send_ready()
+                print("[前端] Ready 已發送給後端")
+            elif lobby_button.collidepoint(event.pos):
+                print("[前端] 玩家選擇返回lobby")
+                client.disconnect_from_server()
+                go_lobby_clicked = True
     
+    if go_lobby_clicked:
+        return "lobby"
     return ready_clicked

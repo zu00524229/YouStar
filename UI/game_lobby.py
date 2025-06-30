@@ -2,14 +2,6 @@
 import pygame as pg
 import settings.game_settings as gs
 
-# 在檔案頂部區域
-lobby_message = ""
-lobby_message_start = 0
-
-def set_lobby_message(msg):
-    global lobby_message, lobby_message_start
-    lobby_message = msg
-    lobby_message_start = time.time()
 
 def render_server_status_ui(surface, server, box_y, mouse_x, mouse_y, index):
     box_width = 600
@@ -82,12 +74,3 @@ def draw_watch_button(surface, x, y, mouse_x, mouse_y, watching_players=0):
     return button_rect
 
 
-import time
-
-# 伺服器文字提示
-def draw_lobby_message(surface, message, start_time, duration=3):
-    if time.time() - start_time < duration:
-        font = gs.CH_FONT_SIZE
-        msg_surface = font.render(message, True, (255, 100, 100))
-        msg_rect = msg_surface.get_rect(center=(gs.WIDTH // 2, gs.HEIGHT - 100))
-        surface.blit(msg_surface, msg_rect)

@@ -94,4 +94,4 @@ async def broadcast_final_leaderboard():
     })
 
     ct.leaderboard = {entry["username"]: entry["score"] for entry in leaderboard_result}  # 可選：存起來
-
+    ct.save_leaderboard()

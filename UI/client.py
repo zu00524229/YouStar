@@ -65,6 +65,7 @@ class GameClient:
         self.current_players = 0        # 當前伺服器人數
         self.watching_players = 0       # 當前觀戰人數
         self.hit_effects = []           # 打擊動畫
+        self.again_timer = 0            # again 倒數秒數預設為0
 
         # 排行榜資料
         self.leaderboard_data = []      
@@ -240,6 +241,11 @@ class GameClient:
                         with self.state_lock:
                             self.final_leaderboard_data = data.get("leaderboard", [])
 
+                    # -------- again 按鈕 --------
+                    elif data.get("event") == "again_timer":
+                        self.again_timer = data.get("remaining_time", 0)
+                        print(f"[Client] 接收到 again 倒數 : {self.again_timer} 秒")
+
                     # ----------  遊戲狀態更新（最常收到 ----------
                     elif data.get("event") == "status_update":
                         # print(f"[前端] 收到 status_update：{data}")
@@ -252,14 +258,16 @@ class GameClient:
                             self.watching_players = data.get("watching_players", 0)     # 觀戰
                             self.leaderboard = data.get("leaderboard", [])
 
-                             # 若狀態從非 playing ➜ playing，要清空飛字殘留
+                            # 若狀態從非 playing ➜ playing，要清空飛字殘留
                             if self.game_state != "playing" and game_phase == "playing":
                                 print("[Client] 狀態切換為 playing，清空 score_popups")
                                 gs.score_popups.clear() # 清除上局飛字殘留
+                                # print("[Client] 狀態切換為 playing，清空 score")
+                                self.score = 0   # 清除分數
 
                             # 更新即時排行榜資料
-                            if self.leaderboard:
-                                self.leaderboard_data = self.leaderboard
+                            # if self.leaderboard:
+                            self.leaderboard_data = self.leaderboard
                                 # print("[前端] 接收到即時 leaderboard 資料：", self.leaderboard)
                             
                             # 更新 client 狀態（會影響畫面顯示）    
@@ -440,10 +448,14 @@ class GameClient:
                 }
                 gs.score_popups.append(popup)
 
-    # 觀戰模式 watch
-    # async def send_watch(self, server_url):
-    #     self.server_url = server_url
-    #     self.is_watching = True
-    #     await self.connect_to_server()
+    # again 按鈕 傳給後端
+    def send_again(self):
+        try:
+            asyncio.create_task(self.ws_conn.send("again"))
+            print("[Client] 發送 again 給後端")
+        except Exception as e:
+            print(f"[Client] 發送 again 發生錯誤：{e}")
+
+
 
         

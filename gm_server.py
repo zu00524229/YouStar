@@ -94,7 +94,7 @@ async def run_status_loop(ws):
 
             # --- waiting -- 玩家進入遊戲、觸發進入 loading 階段
             if ct.game_phase == "waiting":
-                # print(f"[Debug] game_phase={ct.game_phase}, ready_offer_active={ct.ready_offer_active}, loading_start_time={ct.loading_start_time}")
+                
                 await wait.check_start_waiting(now)
 
 
@@ -108,7 +108,7 @@ async def run_status_loop(ws):
             elif ct.game_phase == "playing":
                 await play.handle_playing_phase()
 
-            # --- gameover -- 倒數完轉換(等待玩家是否下局或觀戰)
+            # --- gameover -- 倒數完轉換
             elif ct.game_phase == "gameover":
                 await over.handle_gameover_phase()
 
@@ -132,6 +132,7 @@ async def run_status_loop(ws):
 # ---------------------------------------------------
 # 啟動主流程
 async def main():
+    ct.loop = asyncio.get_event_loop()
     # 特殊地鼠 async 任務(因為少出現 非同步就夠了)
     # asyncio.create_task(special_mole_sender())  # 委派
 

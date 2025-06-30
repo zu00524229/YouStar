@@ -5,6 +5,7 @@ import os
 import sys
 # print("[context] 成功載入 context.py，CONTROL_SERVER_WS =", CONTROL_SERVER_WS)
 
+loop = None  # 這行只是空變數，無任何影響
 shared_client = None
 ws_receiver_start_count = 0 # 檢查殭屍連線
 
@@ -29,6 +30,9 @@ LEADERBOARD_FILE = "leaderboard.json"
 leaderboard = {}                         # 玩家最高分字典 {username: score}
 current_scores = {}                      # 玩家當前當局分數
 watch_players = set()                    # 觀戰玩家 集合
+
+again_active = False         # 是否正在 replay 倒數中
+again_start_time = None      # 倒數起始時間（可選）
 
 # 遊戲計時
 loading_time = 10                        # loading 倒數秒數
@@ -56,7 +60,7 @@ game_phase = "waiting"                   # 遊戲狀態機: waiting / loading / 
 player_websockets = {}                   # {username: websocket} → 廣播/單發使用
 skip_next_status_update = False          # 避免 post_gameover 時多發一次 status_update (waiting)
 post_gameover_cooldown = False           # 是否剛結束過一場 → 防止立即進 loading
-no_player_since = None   # 記錄 playing 中，何時開始沒玩家 → 自動回 waiting
+no_player_since = None                  # 記錄 playing 中，何時開始沒玩家 → 自動回 waiting
 
 
 # 當前地鼠資訊

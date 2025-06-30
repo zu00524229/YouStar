@@ -9,6 +9,7 @@ pg.init()
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GREEN = (0, 200, 0)
+ORANGE = (245, 78, 0)
 YELLOW = (255, 209, 5)
 HOVAR = (158, 79, 0)
 
@@ -19,6 +20,7 @@ HEIGHT = 640
 # 字型
 CH_FONT_PATH = "assets/fonts/NotoSansTC-VariableFont_wght.ttf"
 CH_FONT_SIZE = pg.font.Font(CH_FONT_PATH, 28)
+CH_FONT_SMALL_SIZE = pg.font.Font(CH_FONT_PATH, 18)
 
 # 字型大小
 
@@ -47,7 +49,7 @@ MOLE_TYPES = [
     {"name": "Gold Mole", "color": 	(255, 245, 180), "score": +8},              # 黃金地鼠
     {"name": "Bomb Mole", "color": (92, 92, 92), "score": -5},                  # 炸彈地鼠
     {"name": "Diamond Mole", "color": (0, 255, 255), "score": +15},             # 鑽石地鼠
-    {"name": "Joker Mole", "color": (158, 79, 0), "score": 0, "score_range": (-15, 15)},   # 小丑地鼠
+    {"name": "Joker Mole", "color": (158, 79, 0), "score": 0, "score_range": (-20, 20)},   # 小丑地鼠
 ]
 
 # 特殊地鼠

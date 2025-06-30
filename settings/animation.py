@@ -5,6 +5,32 @@ import settings.game_settings as gs
 import pygame as pg
 
 
+# === 全域變數 ===
+_lobby_message = ""
+_lobby_message_start = 0
+
+# === 設定伺服器提示訊息 ===
+def set_message(msg):
+    global _lobby_message, _lobby_message_start
+    _lobby_message = msg
+    _lobby_message_start = time.time()
+
+# === 清除訊息（可選） ===
+def clear_message():
+    global _lobby_message, _lobby_message_start
+    _lobby_message = ""
+    _lobby_message_start = 0
+
+# === 繪製提示訊息（每次畫面都可呼叫） ===
+def draw_message(surface, duration=3):
+    if time.time() - _lobby_message_start < duration and _lobby_message:
+        font = gs.CH_FONT_SIZE
+        msg_surface = font.render(_lobby_message, True, (255, 100, 100))
+        msg_rect = msg_surface.get_rect(center=(gs.WIDTH // 2, gs.HEIGHT - 100))
+        surface.blit(msg_surface, msg_rect)
+
+
+
 # """加入滑鼠點擊動畫效果"""
 def add_click_effect(pos):
     ct.click_effects.append({

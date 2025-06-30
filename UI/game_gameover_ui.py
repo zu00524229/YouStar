@@ -3,7 +3,25 @@ import pygame as pg
 import settings.game_settings as gs
 import settings.animation as ani
 
+# 歷史最高分排行榜
+def draw_final_leaderboard(surface, leaderboard_data):
+    font = gs.SMALL_FONT_SIZE
+    x, y = gs.WIDTH + 200, 20  # 右上角
+
+     # 標題
+    title_surface = font.render("High Scores", True, (255, 215, 0))
+    surface.blit(title_surface, (x, y))
+    y += 30
+
+    for i, entry in enumerate(leaderboard_data[:5]):  # 顯示前5名
+        text = f"{i+1}. {entry['username']} - {entry['score']}"
+        text_surface = font.render(text, True, (255, 255, 255))
+        surface.blit(text_surface, (x, y))
+        y += 25
+
+
 def draw_gameover_screen(screen, handle_quit, client, events):
+    
     if client.game_state not in ["gameover", "post_gameover"]:
         print("[前端] 已進入非 gameover/post_gameover 狀態，跳出畫面")
         return
@@ -30,10 +48,12 @@ def draw_gameover_screen(screen, handle_quit, client, events):
     exit_surface = gs.FONT_SIZE.render("Lobby", True, gs.HOVAR if is_hover_exit else gs.WHITE)
     screen.blit(exit_surface, exit_rect)
 
-    # Again 按鈕（僅發起人用）
-    again_surface = gs.FONT_SIZE.render("Again", True, gs.HOVAR if pg.Rect(gs.WIDTH / 2 + 120 - 40, gs.HEIGHT - 80 - 20, 80, 40).collidepoint(mouse_x, mouse_y) else gs.WHITE)
-    again_rect = again_surface.get_rect(center=(gs.WIDTH / 2 + 120, gs.HEIGHT - 80))
-    screen.blit(again_surface, again_rect)
+    # Again 按鈕
+    again_rect = None   # 只有非觀戰顯示
+    if not client.is_watching:
+        again_surface = gs.FONT_SIZE.render("Again", True, gs.HOVAR if pg.Rect(gs.WIDTH / 2 + 120 - 40, gs.HEIGHT - 80 - 20, 80, 40).collidepoint(mouse_x, mouse_y) else gs.WHITE)
+        again_rect = again_surface.get_rect(center=(gs.WIDTH / 2 + 120, gs.HEIGHT - 80))
+        screen.blit(again_surface, again_rect)
 
     # === 處理滑鼠點擊 ===
     for event in events:
@@ -44,9 +64,9 @@ def draw_gameover_screen(screen, handle_quit, client, events):
             ani.add_click_effect(event.pos)
             print(f"[Debug] Mouse click at {mouse_x}, {mouse_y}")
 
-            if again_rect.collidepoint(mouse_x, mouse_y):
+            if again_rect and again_rect.collidepoint(mouse_x, mouse_y):
                 print("[Debug] Clicked AGAIN")
-                # client.send_post_game_again()  # 傳送 again:<username>
+                client.send_again()     # 呼叫方法 傳送 again 訊號
                 return None
 
             if exit_rect.collidepoint(mouse_x, mouse_y):

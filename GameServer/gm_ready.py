@@ -1,4 +1,4 @@
-# gm_ready.py
+# gm_again.py
 import time
 import settings.context as ct
 import GameServer.broadcaster as bc

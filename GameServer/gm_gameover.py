@@ -18,8 +18,6 @@ async def handle_gameover_phase():
         ct.game_phase = "post_gameover"
         ct.phase_changed_event.set()
 
-        # await reset_game_to_waiting()
-        # ct.skip_next_status_update = True
         await bc.broadcast_status_update()
         await bc.broadcast_final_leaderboard()
 
@@ -36,16 +34,13 @@ async def reset_game_to_waiting():
     ct.current_scores.clear()
     ct.current_mole = {}
     ct.current_special_mole = {}
-    ct.leaderboard_result = []
     ct.skip_next_status_update = False
     ct.game_phase = "waiting"
-    ct.ready_offer_active = False
-    ct.ready_players = set()
-    ct.watch_players.clear()        # 清除觀戰者
     ct.loading_start_time = None
     ct.game_start_time = None
     ct.gameover_start_time = None
     ct.phase_changed_event.clear()
-    ct.save_leaderboard()
+    ct.ready_players.clear()            # 清除 ready 事件
+    # ct.save_leaderboard()
     print("[GameServer] 已成功切回 waiting，準備接收新玩家")
     await bc.broadcast_status_update()

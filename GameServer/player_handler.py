@@ -5,7 +5,7 @@ import asyncio
 import websockets
 import settings.context as ct
 import GameServer.broadcaster as bc
-import GameServer.gm_replay as rep
+import GameServer.gm_again as rep
 import GameServer.gm_gameover as gov
 import GameServer.gm_ready as rad
 import GameServer.player_message_handler as pmh
@@ -70,7 +70,7 @@ async def player_handler(websocket):
     # 如果是觀戰者
     if msg == "watch":
         username = f"watcher_{len(ct.watch_players)+1}"  # 自動命名
-        if ct.game_phase == "playing":
+        if ct.game_phase in ["playing", "gameover", "post_gameover"]:
             ct.watch_players.add(username)
             print(f"[GameServer] 觀戰者加入：{username}")
         else:
@@ -152,12 +152,13 @@ async def player_handler(websocket):
                         print(f"[GameServer] 玩家 {username} 嘗試進入觀戰，但目前不是 playing 階段 → 忽略")
 
                 elif msg == "again":
-                    await rep.start_replay_offer(username)
-
-
-                    # 遊戲結束後待機，等待指令
-                    if ct.game_phase == "post_gameover" and ct.ready_players.issuperset(ct.connected_players):
-                        await gov.reset_game_to_waiting()
+                    if not ct.again_active:
+                        ct.again_active = True
+                        ct.again_start_time = time.time()
+                        print(f"[Replay] 玩家 {username} 觸發 Again，開始全房間倒數")
+                        asyncio.create_task(rep.start_again_countdown())
+                    else:
+                        print(f"[Replay] 玩家 {username} 點擊 Again，但倒數已啟動，忽略")
 
                 
                 else:   # 未知訊息
@@ -168,10 +169,13 @@ async def player_handler(websocket):
 
     finally:       # 
         if username:
-            ct.connected_players.discard(username)
-            ct.player_websockets.pop(username, None)
-            ct.watch_players.discard(username)
-            await notify_control_player_offline(username)
-            print(f"[GameServer] 玩家 {username} 離線並清除狀態")
-            print(f"[GameServer] 目前在線玩家: {ct.connected_players}")
+            try:
+                ct.connected_players.discard(username)          # 從「目前連線玩家名單」中移除該玩家
+                ct.player_websockets.pop(username, None)        # 移除 WebSocket 映射：這樣 zombie_cleaner 不會繼續嘗試 ping
+                ct.watch_players.discard(username)              # 如果他是觀戰者，也從觀戰名單中移除
+                await notify_control_player_offline(username)   # 通知 ControlServer 該玩家離線，這對排行榜與控制台顯示很重要
+                print(f"[GameServer] 玩家 {username} 離線並清除狀態")
+                print(f"[GameServer] 目前在線玩家: {ct.connected_players}")
+            except Exception as e:
+                print(f"[GameServer] finally 區段錯誤: {e}")
 

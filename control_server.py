@@ -53,6 +53,7 @@ async def handle_client(websocket):
                     else:
                         player_online_status[username] = None
                         websocket_identity_map[websocket] = f"Player:{username}"  # 加入識別
+                        print(f"[Login] 玩家 {username} 成功登入")
                         await websocket.send(json.dumps({
                             "type": "login_response",
                             "success": True
@@ -105,7 +106,7 @@ async def handle_client(websocket):
                         "game_phase": data.get("game_phase", "waiting"),     # 更新目前遊戲階段
                         "last_heartbeat": time.time()                        # 更新心跳時間
                     })
-                    print(f"[中控] 更新 GameServer {server_url}：players = {data.get('current_players')}, watching = {data.get('watching_players')}")
+                    # print(f"[中控] 更新 GameServer {server_url}：players = {data.get('current_players')}, watching = {data.get('watching_players')}")
 
             # 玩家請求 GameServer 列表
             elif data.get("type") == "get_server_list":
@@ -132,7 +133,7 @@ async def handle_client(websocket):
                 username = data["username"]
                 server_url = data["server_url"]
                 player_online_status[username] = server_url
-                print(f"[Player Join] 玩家 {username} 加入 → {server_url}")
+                print(f"[Player Join] 玩家 {username} 加入 Gameserver → {server_url}")
 
             # 玩家離線通知
             elif data.get("type") == "offline":
@@ -181,8 +182,23 @@ async def handle_client(websocket):
 
     except websockets.exceptions.ConnectionClosed:
         identity = websocket_identity_map.pop(websocket, None)
-        if identity and not identity.startswith("Temp:get_server_list"):
-            print(f"[Disconnect] {identity} 斷線")
+        if identity:
+            if identity.startswith("Player:"):
+                username = identity.split("Player:")[1]
+                assigned_server = player_online_status.pop(username, "未知")
+                print(f"[Disconnect] 玩家 {username} 與中控連線中斷 → 原本所在 GameServer: {assigned_server}")
+                if assigned_server in gameserver_status:
+                    gameserver_status[assigned_server]["current_players"] = max(
+                        0, gameserver_status[assigned_server]["current_players"] - 1
+                    )
+            elif identity.startswith("GameServer:"):
+                server_url = identity.split("GameServer:")[1]
+                if server_url in gameserver_status:
+                    gameserver_status[server_url]["connected"] = False
+                    print(f"[Disconnect] GameServer {server_url} 與中控連線中斷")
+        else:
+            print("[Disconnect] 未知 websocket 連線中斷（尚未註冊身份）")
+
 
 # 啟動 WebSocket Server + heartbeat_checker
 async def main():

@@ -47,10 +47,16 @@ def player_count(surface, current_players):
     surface.blit(players_surface, players_rect)
 
 # 當前觀戰人數
-def watching_count(surface, watching_players):
+def watching_count(surface, watching_players, is_watching):
     watch_surface = gs.SMALL_FONT_SIZE.render(f"Viewers: {watching_players}", True, (180, 200, 220))  
     watch_rect = watch_surface.get_rect(bottomleft=(20, gs.HEIGHT - 20))  # 左下角
     surface.blit(watch_surface, watch_rect)
+
+    # 如果是觀戰者，再顯示提示
+    if is_watching:  #  確保你有這個判斷屬性
+        watching_tip = gs.CH_FONT_SMALL_SIZE.render("觀戰中...", True, (180, 200, 220))
+        tip_rect = watching_tip.get_rect(bottomleft=(watch_rect.right + 10, gs.HEIGHT - 20))  # 接在右邊
+        surface.blit(watching_tip, tip_rect)
     
 # 等待GameServer 狀態刷新
 def wait_until_state_not_gameover(client, delay_ms = 100):
@@ -71,7 +77,11 @@ async def run_game_loop(screen, client: GameClient):
     await asyncio.sleep(0.2)
     clock = pg.time.Clock()
 
-    # 如果不是觀察者才等待刷新狀態
+    # # 無論是否觀戰，一開始都強制同步 game_state
+    # await client.fetch_server_state()  # 真正從 GameServer 抓狀態
+
+
+    # 如果不是觀戰者才等待刷新狀態
     if not client.is_watching:
         wait_until_state_not_gameover(client)
 
@@ -99,10 +109,14 @@ async def run_game_loop(screen, client: GameClient):
         
         if current_game_state in ["waiting", "loading", "playing", "gameover","post_gameover"]:
             player_count(screen, current_players)   # 右下角當前 GameServer 人數
-            watching_count(screen, watching_players)     # 左下角顯示 Watching
+            watching_count(screen, watching_players, client.is_watching)     # 左下角顯示 Watching
         
         if current_game_state == "waiting":
-            wait.draw_waiting_screen(screen, events, client)    # 等待畫面
+            result = wait.draw_waiting_screen(screen, events, client)    # 等待畫面
+            if result == "lobby":
+                return "lobby"  # 通知主程式切換回大廳
+            elif result:        # 玩家點了 Ready
+                    client.game_state = "loading"
 
         elif current_game_state == "loading":
             draw_loading_screen(screen, current_loading_time)   # loading畫面
@@ -116,17 +130,22 @@ async def run_game_loop(screen, client: GameClient):
 
         elif current_game_state in ["gameover", "post_gameover"]:
             # 若後端已切換成 playing，強制跳出並重啟遊戲畫面
-            if client.game_state == "playing":
-                print("[MainLoop] 偵測到 replay 倒數結束，進入 playing 畫面")
-                continue
+            # if client.game_state == "playing":
+            #     print("[MainLoop] 偵測到 replay 倒數結束，進入 playing 畫面")
+            #     continue
             result = ov.draw_gameover_screen(screen, handle_quit, client, events)
+            ov.draw_final_leaderboard(screen, client.leaderboard_data)
+
+            
+            #
+            if client.game_state == "post_gameover" and client.again_timer > 0:
+                text = gs.SMALL_FONT_SIZE.render(f"loading..{client.again_timer} s", True, (255, 0, 0))
+                screen.blit(text, (gs.WIDTH / 2 + 120 - 40, gs.HEIGHT - 140))  # 放你想要的位置
+            else:
+                client.again_timer = 0  # 清除舊殘留（保險用）
                 
             if result in ["again", "watch", "lobby"]:
                 return result
-                
-            # ani.draw_click_effects(screen)
-            # pg.display.flip()
-            # await asyncio.sleep(0.1)
             
         elif current_game_state == "lobby":
             print("[MainLoop] 玩家已返回 lobby，準備跳出遊戲迴圈")
@@ -135,6 +154,7 @@ async def run_game_loop(screen, client: GameClient):
         else:
             print(f"[警告] 未知的 game_state: {current_game_state}")
 
+        ani.draw_message(screen)
         ani.draw_click_effects(screen)
         pg.display.flip()
         clock.tick(60)

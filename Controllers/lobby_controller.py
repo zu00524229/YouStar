@@ -38,10 +38,10 @@ async def handle_server_selection(event, server_buttons, client):
                 # 判斷人數限制(中控資料)
                 if server_info['current_players'] >= server_info['max_players']:
                     print("[Lobby] 伺服器人數已滿，請等待或點 Watch 觀戰")
-                    gl.set_lobby_message("伺服器人數已滿，請點 Watch 觀戰")
+                    ani.set_message("伺服器人數已滿，請點 Watch 觀戰")
                     return None
 
-                if server_state in ["waiting", "loading"]:
+                if server_state in ["waiting", "loading", "post_gameover"]:
                     print(f"[Lobby] 玩家選擇連線到 GameServer: {url}")
                     client.server_url = url
                     client.is_watching = False      # 非觀戰者
@@ -99,6 +99,6 @@ async def show_lobby(screen, client, handle_quit):
                     return "play"
 
         ani.draw_click_effects(screen)
-        gl.draw_lobby_message(screen, gl.lobby_message, gl.lobby_message_start)
+        ani.draw_message(screen)
         pg.display.flip()
         pg.time.Clock().tick(30)
