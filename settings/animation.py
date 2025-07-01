@@ -21,6 +21,7 @@ def clear_message():
     _lobby_message = ""
     _lobby_message_start = 0
 
+
 # === 繪製提示訊息（每次畫面都可呼叫） ===
 def draw_message(surface, duration=3):
     if time.time() - _lobby_message_start < duration and _lobby_message:
@@ -28,8 +29,6 @@ def draw_message(surface, duration=3):
         msg_surface = font.render(_lobby_message, True, (255, 100, 100))
         msg_rect = msg_surface.get_rect(center=(gs.WIDTH // 2, gs.HEIGHT - 100))
         surface.blit(msg_surface, msg_rect)
-
-
 
 # """加入滑鼠點擊動畫效果"""
 def add_click_effect(pos):
@@ -83,3 +82,4 @@ def draw_score_popups(screen):
 
     # 清理掉已完全消失的飛字
     gs.score_popups[:] = [p for p in gs.score_popups if p["alpha"] > 0]
+

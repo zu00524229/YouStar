@@ -140,8 +140,11 @@ async def player_handler(websocket):
                     await pmh.handle_special_hit(msg, username)
 
                 # 玩家提交最終分數：final:<username>:<score>
-                elif msg.startswith("final:"):
-                    await pmh.handle_final_score(msg)
+                # elif msg.startswith("final:"):
+                #     await pmh.handle_final_score(msg)
+                #     print(f"[Handler] 收到 final 分數：{msg}")
+
+            
 
                 # 玩家觀戰模式（新增）
                 elif msg == "watch":

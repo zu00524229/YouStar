@@ -4,6 +4,7 @@ import json
 import time
 import math
 import settings.context as ct
+import UI.game_gameover_ui as gou
 
 
 #  廣播當前狀態 : 通用 status_update（所有階段都可使用
@@ -77,15 +78,17 @@ async def _safe_send(player, ws_conn, msg):
         # ct.player_websockets.pop(player, None)
 
 
-# 廣播最終 leaderboard（使用歷史最高分）
+# 廣播最終 leaderboard（遊戲結束）
 async def broadcast_final_leaderboard():
+    import json
+    
+    # 將 leaderboard 轉換為列表格式
     leaderboard_result = [
         {"username": username, "score": score}
         for username, score in ct.leaderboard.items()
     ]
-
-    # 排序（高分在前
     leaderboard_result.sort(key=lambda x: x["score"], reverse=True)
+    print(f"[Broadcast] 最終 leaderboard 廣播中：{leaderboard_result}")
 
     # 廣播給所有玩家（事件名稱一致）
     await broadcast({
@@ -93,5 +96,31 @@ async def broadcast_final_leaderboard():
         "leaderboard": leaderboard_result  # <== 使用排序後的 list
     })
 
-    ct.leaderboard = {entry["username"]: entry["score"] for entry in leaderboard_result}  # 可選：存起來
-    ct.save_leaderboard()
+ 
+
+# === 比對歷史最高分 ===
+    if ct.current_scores:
+        highest_player, highest_score = max(ct.current_scores.items(), key=lambda x: x[1])
+
+        # 撈取歷史最高分
+        old_leaderboard = gou.get_sorted_leaderboard_list_from_file()
+        history_highest = old_leaderboard[0]["score"] if old_leaderboard else 0
+
+        if highest_score > history_highest:
+            print(f"[GameServer] 🎉 {highest_player} 創下歷史最高分 {highest_score}！通知中控")
+
+            if ct.control_ws:
+                try:
+                    await ct.control_ws.send(json.dumps({
+                        "type": "highlight",
+                        "message": f"NICE!! {highest_player} 破紀錄！拿下 {highest_score} 分！"
+                    }))
+                    print("[GameServer] highlight 已送出")
+                except Exception as e:
+                    print(f"[GameServer] 傳送 highlight 失敗：{e}")
+            else:
+                print("[GameServer] ❗ control_ws 尚未建立，無法傳送 highlight")
+
+    ct.leaderboard = {entry["username"]: entry["score"] for entry in leaderboard_result}
+    ct.save_leaderboard()     # 排行榜更新(儲存)
+    

@@ -1,12 +1,33 @@
 # game_mainloop.py  管理game.py遊戲主循環 與 loading
 import pygame as pg
 import asyncio
+import time
 import UI.game_play as pl
 import UI.game_gameover_ui as ov
 import UI.game_waiting as wait
 import settings.game_settings as gs
 import settings.animation as ani
 from UI.client import GameClient
+
+# 破紀錄廣播
+def show_highlight(screen, client):
+    if client.highlight_message and time.time() - client.highlight_time < 5:    # 顯示秒數 5 秒
+        font = gs.CH_FONT_SIZE
+        text_surface = font.render(client.highlight_message, True, (255, 0, 0))  # 紅字
+
+        text_width = text_surface.get_width()
+        text_height = text_surface.get_height()
+
+        # 畫黃色背景框（比文字大一點）
+        bar_height = text_height + 20 # 上下 padding 各 10 px
+        bar_rect = pg.Rect(0, 0, gs.WIDTH, bar_height)
+
+        pg.draw.rect(screen, gs.YELLOW, bar_rect)  # 黃底
+
+        text_x = (gs.WIDTH - text_width) // 2
+        text_y = 10
+        # 把紅字畫上去
+        screen.blit(text_surface, (text_x, text_y))
 
 # loading (等待與加入)
 def draw_loading_screen(screen, current_loading_time):
@@ -54,7 +75,7 @@ def watching_count(surface, watching_players, is_watching):
 
     # 如果是觀戰者，再顯示提示
     if is_watching:  #  確保你有這個判斷屬性
-        watching_tip = gs.CH_FONT_SMALL_SIZE.render("觀戰中...", True, (180, 200, 220))
+        watching_tip = gs.CH_FONT_SMALL_SIZE.render("觀戰中...", True, (gs.ORANGE))
         tip_rect = watching_tip.get_rect(bottomleft=(watch_rect.right + 10, gs.HEIGHT - 20))  # 接在右邊
         surface.blit(watching_tip, tip_rect)
     
@@ -110,6 +131,9 @@ async def run_game_loop(screen, client: GameClient):
         if current_game_state in ["waiting", "loading", "playing", "gameover","post_gameover"]:
             player_count(screen, current_players)   # 右下角當前 GameServer 人數
             watching_count(screen, watching_players, client.is_watching)     # 左下角顯示 Watching
+            # 顯示破紀錄提示（限時 3 秒）
+            show_highlight(screen, client)  # 破紀錄廣播
+
         
         if current_game_state == "waiting":
             result = wait.draw_waiting_screen(screen, events, client)    # 等待畫面
@@ -129,15 +153,16 @@ async def run_game_loop(screen, client: GameClient):
                 pl.handle_playing_events(events, state, client, score, handle_quit)
 
         elif current_game_state in ["gameover", "post_gameover"]:
-            # 若後端已切換成 playing，強制跳出並重啟遊戲畫面
-            # if client.game_state == "playing":
-            #     print("[MainLoop] 偵測到 replay 倒數結束，進入 playing 畫面")
-            #     continue
             result = ov.draw_gameover_screen(screen, handle_quit, client, events)
-            ov.draw_final_leaderboard(screen, client.leaderboard_data)
+            ov.draw_final_leaderboard(screen, ov.get_sorted_leaderboard_list_from_file())       # 左上歷史高分排行
 
+                # --- 如果後端已切進下一場 playing，這邊強制跳回迴圈重新處理 ---
+            if client.game_state == "playing":
+                print("[MainLoop] 偵測到 replay 倒數結束，自動進入新一局 playing，重設 final_sent")
+                client.final_sent = False
+                continue  # 回到主迴圈重新處理畫面
             
-            #
+            # --- 處理 Again 倒數畫面 ---
             if client.game_state == "post_gameover" and client.again_timer > 0:
                 text = gs.SMALL_FONT_SIZE.render(f"loading..{client.again_timer} s", True, (255, 0, 0))
                 screen.blit(text, (gs.WIDTH / 2 + 120 - 40, gs.HEIGHT - 140))  # 放你想要的位置

@@ -8,6 +8,7 @@ import sys
 loop = None  # 這行只是空變數，無任何影響
 shared_client = None
 ws_receiver_start_count = 0 # 檢查殭屍連線
+control_ws = None  #  用於廣播破紀錄線
 
 # 配置
 CONTROL_SERVER_WS = "ws://127.0.0.1:8765"
@@ -26,8 +27,8 @@ MY_GAME_SERVER_WS = f"ws://127.0.0.1:{MY_PORT}/ws"
 phase_changed_event = asyncio.Event()    # 等待進入 playing → mole_sender 才啟動
 connected_players = set()                # 目前在線玩家 username 集合
 
-LEADERBOARD_FILE = "leaderboard.json"
-leaderboard = {}                         # 玩家最高分字典 {username: score}
+LEADERBOARD_FILE = "leaderboard.json"    # 玩家歷史高分 {username: score}
+leaderboard = {}                         # 玩家分數字典 {username: score}
 current_scores = {}                      # 玩家當前當局分數
 watch_players = set()                    # 觀戰玩家 集合
 

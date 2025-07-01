@@ -3,7 +3,8 @@ import asyncio
 import websockets
 import json
 import time
-import settings.control_set as set
+import settings.control_set as sec
+import GameServer.broadcaster as bc
 
 # 假資料
 fake_users = {
@@ -11,13 +12,27 @@ fake_users = {
     "player2": {"password": "5678"},
     "player3": {"password": "3333"},
     "player4": {"password": "4444"},
-    "player5": {"password": "5555"}
+    "player5": {"password": "5555"},
+    "player6": {"password": "6666"},
+    "player7": {"password": "7777"},
+    "player8": {"password": "8888"},
+    "player9": {"password": "9999"}
 }
 
 # 狀態表初始化
 gameserver_status = {}      # 儲存每一台已連線的 GameServer 狀態（connected / current_players / game_phase / leaderboard / last_heartbeat）
 player_online_status = {}   # 儲存當前在線玩家狀態，防止重複登入
 websocket_identity_map = {} # websocket: username or GameServer
+
+# 中控給 指定GameServer 訊號
+async def broadcast_to_all_gameservers(message: dict):
+    # 預設你有一個 gameserver_status 變數儲存所有註冊的伺服器
+    for server_url in gameserver_status.keys():
+        try:
+            async with websockets.connect(server_url) as ws:
+                await ws.send(json.dumps(message))
+        except Exception as e:
+            print(f"[中控] 廣播到 {server_url} 失敗：{e}")
 
 # 中控 自動檢查 GameServer 是否掉線
 async def heartbeat_checker():
@@ -69,6 +84,9 @@ async def handle_client(websocket):
             elif data.get("type") == "register_gameserver":
                 server_url = data["server_url"]
 
+                # 新增這行：把 websocket 存入 GameServer WebSocket 清單
+                sec.gameserver_websockets.add(websocket)
+
                 # 建立辨識表：記住這個 websocket 是哪一台 GameServer
                 websocket_identity_map[websocket] = f"GameServer:{server_url}"
                 print(f"[Register] GameServer 註冊: {server_url}")
@@ -78,7 +96,7 @@ async def handle_client(websocket):
                     "connected": True,              # 表示這台伺服器已連上
                     "current_players": 0,           # 初始人數為 0
                     "watching_players": 0,          # 觀看初始人數為 0
-                    "max_players": set.DEFAULT_MAX_PLAYERS,  # 預設最大人數（可日後擴充）
+                    "max_players": sec.DEFAULT_MAX_PLAYERS,  # 預設最大人數（可日後擴充）
                     # "in_game": False,             # 已淘汰欄位，改用 game_phase 判斷
                     "remaining_time": 0,            # 初始剩餘時間為 0（尚未開始遊戲）
                     "leaderboard": [],              # 初始排行榜為空
@@ -94,17 +112,35 @@ async def handle_client(websocket):
             # --- GameServer 狀態更新（每秒回報）---
             elif data.get("type") == "update_status":
                 server_url = data.get("server_url")
+                current_players = data["current_players", 0]
+                max_players = data.get("max_players", 6)
+                
+                # 確保這台 server 已註冊過才更新（避免未初始化錯誤）
+                if server_url not in gameserver_status:
+                    print(f"[警告] 未註冊的 GameServer 回報狀態：{server_url}")
+                    return
+
+                # 儲存該伺服器狀態 
+                gameserver_status[server_url]["current_players"] = current_players
+
+                # 若該台有空位，廣播給其他 GameServer
+                if current_players < max_players:
+                    await broadcast_to_all_gameservers({
+                        "event": "new_slot_available",
+                        "target_server": server_url,
+                        "player_count": current_players,
+                        "max_players": max_players
+                    })
 
                 # 若該 server_url 有註冊過，就更新它的狀態
                 if server_url in gameserver_status:
                     gameserver_status[server_url].update({
-                        "current_players": data.get("current_players", 0),   # 更新目前人數
-                        "watching_players": data.get("watching_players", 0),
-                        "leaderboard": data.get("leaderboard", []),          # 更新排行榜
-                        "remaining_time": data.get("remaining_time", 0),     # 更新剩餘遊戲時間
-                        # "in_game": data.get("in_game", False),               # 這欄其實可移除（你已經不需要了）
-                        "game_phase": data.get("game_phase", "waiting"),     # 更新目前遊戲階段
-                        "last_heartbeat": time.time()                        # 更新心跳時間
+                        "current_players": data.get("current_players", 0),      # 更新目前人數
+                        "watching_players": data.get("watching_players", 0),    # 更新觀戰人數
+                        "leaderboard": data.get("leaderboard", []),             # 更新排行榜
+                        "remaining_time": data.get("remaining_time", 0),        # 更新剩餘遊戲時間
+                        "game_phase": data.get("game_phase", "waiting"),        # 更新目前遊戲階段
+                        "last_heartbeat": time.time()                           # 更新心跳時間
                     })
                     # print(f"[中控] 更新 GameServer {server_url}：players = {data.get('current_players')}, watching = {data.get('watching_players')}")
 
@@ -168,10 +204,21 @@ async def handle_client(websocket):
                         "type": "get_leaderboard_response",
                         "error": "GameServer 未找到"
                     }))
-            
+
+            # 破紀錄!! (GameServer 資料後 廣播分數破紀錄給所有GameServer)
+            elif data.get("type") == "highlight":
+                msg = data["message"] # 廣播訊息
+                print(f"[Control] 收到 highlight 廣播：{msg}")
+                for gs_ws in sec.gameserver_websockets:
+                    await gs_ws.send(json.dumps({
+                        "type": "highlight",
+                        "message": msg
+                    }))
+
             # Heartbeat 或狀態更新 (GameServer 狀態)
             elif data.get("type") == "ping":
                 server_url = None
+
                 for url, status in gameserver_status.items():
                     if status["connected"]:
                         server_url = url
@@ -182,6 +229,10 @@ async def handle_client(websocket):
 
     except websockets.exceptions.ConnectionClosed:
         identity = websocket_identity_map.pop(websocket, None)
+        if websocket in sec.gameserver_websockets:
+            sec.gameserver_websockets.remove(websocket)
+            print("[Control] GameServer 離線，已移除 WebSocket")
+            
         if identity:
             if identity.startswith("Player:"):
                 username = identity.split("Player:")[1]

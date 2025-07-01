@@ -12,7 +12,6 @@ async def handle_gameover_phase():
 
     if elapsed_gameover >= 2:
         print("[GameServer] gameover 完成 → 準備回到 post_gameover")
-
         # 新增：廣播 gameover 給前端
 
         ct.game_phase = "post_gameover"

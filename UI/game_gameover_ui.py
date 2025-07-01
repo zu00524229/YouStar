@@ -3,21 +3,46 @@ import pygame as pg
 import settings.game_settings as gs
 import settings.animation as ani
 
-# 歷史最高分排行榜
-def draw_final_leaderboard(surface, leaderboard_data):
-    font = gs.SMALL_FONT_SIZE
-    x, y = gs.WIDTH + 200, 20  # 右上角
+# 轉換 leaderboard.json 檔案成排序好的排行榜列表
+def get_sorted_leaderboard_list_from_file():
+    import json, os
+    LEADERBOARD_FILE = "leaderboard.json"  # 檔案路徑
 
-     # 標題
+    # 如果檔案不存在或為空，回傳空列表
+    if not os.path.exists(LEADERBOARD_FILE) or os.path.getsize(LEADERBOARD_FILE) == 0:
+        return []
+
+    try:
+        with open(LEADERBOARD_FILE, "r") as f:
+            raw_data = json.load(f)  # 讀取 json 檔（dict 格式）
+
+        # 將 dict 轉成 list 並依照分數高低排序
+        return sorted(
+            [{"username": name, "score": score} for name, score in raw_data.items()],
+            key=lambda x: x["score"],
+            reverse=True  # 分數由高到低
+        )
+    except json.JSONDecodeError:
+        print("[錯誤] leaderboard.json 檔案格式錯誤，自動回傳空列表")
+        return []
+
+
+# 在畫面左上角顯示歷史排行榜（最多顯示前五名）
+def draw_final_leaderboard(surface, leaderboard_data):
+    font = gs.SMALL_FONT_SIZE   # 使用小字體
+    x, y = 20, 50               # 左上角
+
+    # 畫出標題文字「High Scores」
     title_surface = font.render("High Scores", True, (255, 215, 0))
     surface.blit(title_surface, (x, y))
     y += 30
 
-    for i, entry in enumerate(leaderboard_data[:5]):  # 顯示前5名
+    # 列出前五名玩家與分數
+    for i, entry in enumerate(leaderboard_data[:10]):  # 顯示前10名
         text = f"{i+1}. {entry['username']} - {entry['score']}"
         text_surface = font.render(text, True, (255, 255, 255))
         surface.blit(text_surface, (x, y))
-        y += 25
+        y += 25 # 每列間距
 
 
 def draw_gameover_screen(screen, handle_quit, client, events):
@@ -54,6 +79,7 @@ def draw_gameover_screen(screen, handle_quit, client, events):
         again_surface = gs.FONT_SIZE.render("Again", True, gs.HOVAR if pg.Rect(gs.WIDTH / 2 + 120 - 40, gs.HEIGHT - 80 - 20, 80, 40).collidepoint(mouse_x, mouse_y) else gs.WHITE)
         again_rect = again_surface.get_rect(center=(gs.WIDTH / 2 + 120, gs.HEIGHT - 80))
         screen.blit(again_surface, again_rect)
+
 
     # === 處理滑鼠點擊 ===
     for event in events:

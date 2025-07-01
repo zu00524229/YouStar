@@ -31,21 +31,39 @@ async def register_to_control():
                     "server_url": ct.MY_GAME_SERVER_WS
                 }))
 
+                ct.control_ws = ws
+
                 # 改為 background task → run_status_loop → 狀態更新 & heartbeat
                 asyncio.create_task(run_status_loop(ws))
                 # 傳送伺服器狀態給 中控 (背景工作)
                 asyncio.create_task(send_update_status(ws))
 
 
-                # 保持 websocket 連線
+                # 從中控接收 highlight 資料
                 while True:
-                    await asyncio.sleep(1)
+                    try:
+                        msg = await ws.recv()       # 接收 highlight 訊息
+                        data = json.loads(msg)
+
+                        if data.get("type") == "highlight":
+                            print(f"[GameServer] 收到 highlight 指令：{data.get('message')}")
+                            await bc.broadcast({
+                                "type": "highlight",
+                                "message": data.get("message")
+                            })
+                        else:
+                            print(f"[GameServer] 收到未知訊息類型：{data.get('type')}")
+                    except Exception as e:
+                        print(f"[GameServer] 接收中控訊息失敗：{e}")
+                        break
+                    # await asyncio.sleep(1)
 
         except Exception as e:
             print(f"[GameServer] 中控連線失敗或斷線，3 秒後重試: {e}")
+            ct.control_ws = None  #  清空無效 ws，避免後續錯誤
             await asyncio.sleep(3)
 
-# 定時向中控伺服器（ControlServer）回報 GameServer 狀態
+# 定時向 ControlServer 伺服器回報 GameServer 狀態
 async def send_update_status(ws):
     print("[Debug] send_update_status() 啟動")
     while True:
@@ -97,12 +115,11 @@ async def run_status_loop(ws):
                 
                 await wait.check_start_waiting(now)
 
-
             # --- loading -- 倒數完轉為 playing
             elif ct.game_phase == "loading":
                 print("[Debug] run_status_loop 檢測到 loading，呼叫 handle_loading_phase()")
                 await load.handle_loading_phase()
-                print("[Debug]  handle_loading_phase() 被呼叫進來了")
+                # print("[Debug]  handle_loading_phase() 被呼叫進來了")
 
             # --- playing -- 管理玩家離線與結束倒數
             elif ct.game_phase == "playing":

@@ -6,6 +6,7 @@ import threading
 import time
 import settings.context as ct
 import settings.game_settings as gs
+import settings.animation as ani
 
 
 class GameClient:
@@ -14,6 +15,8 @@ class GameClient:
             raise ValueError("GameClient 建立時必須提供 asyncio event loop！")
         self.loop = loop
         # self.async_loop = loop
+        self.highlight_message = ""       # 最新 highlight 訊息字串
+        self.highlight_time = 0           # 收到訊息的時間戳（用於顯示幾秒後清除）
 
 
         self.username = username    # 玩家帳號名稱
@@ -66,15 +69,21 @@ class GameClient:
         self.watching_players = 0       # 當前觀戰人數
         self.hit_effects = []           # 打擊動畫
         self.again_timer = 0            # again 倒數秒數預設為0
+        self.final_sent = False
+        self.highlight_message = ""
+        self.highlight_timer = 0
+
 
         # 排行榜資料
-        self.leaderboard_data = []      
+        self.leaderboard_data = []      # 當局排行榜
         self.state_lock = threading.Lock()
 
     # 回傳前端畫面需要同步的遊戲狀態（顯示地鼠、分數、倒數時間等）
     def sync_game_state(self):
         with self.state_lock:
             return {
+                "highlight_message": self.highlight_message,          # 最新 highlight 訊息字串
+                "highlight_time":self.highlight_time,                 # 收到訊息的時間戳（用於顯示幾秒後清除
                 "current_players": self.current_players,              # 當前伺服器人數
                 "watching_players": self.watching_players,            # 當前觀戰人數
                 "game_state": self.game_state,                        # 遊戲狀態（waiting / loading / playing / gameover 等）
@@ -235,17 +244,23 @@ class GameClient:
                             # print(f"[前端] 飛字提示：{mole_name} +{score}")
                             self.show_score_popup(score, mole_id, mole_name)
 
-                    # ----------  最終排行榜 ----------
+                    # ----------  (當局)最終排行榜 ----------
                     elif data.get("event") == "final_leaderboard":
                         print("[前端] 收到最終排行榜資料")
                         with self.state_lock:
-                            self.final_leaderboard_data = data.get("leaderboard", [])
+                            self.leaderboard_data = data.get("leaderboard", [])
 
                     # -------- again 按鈕 --------
                     elif data.get("event") == "again_timer":
                         self.again_timer = data.get("remaining_time", 0)
                         print(f"[Client] 接收到 again 倒數 : {self.again_timer} 秒")
 
+                    elif data.get("type") == "highlight":
+                        self.highlight_message = data["message"]
+                        self.highlight_time = time.time()
+                        print(f"[Client] 收到 highlight：{self.highlight_message}")
+                
+                    
                     # ----------  遊戲狀態更新（最常收到 ----------
                     elif data.get("event") == "status_update":
                         # print(f"[前端] 收到 status_update：{data}")
@@ -456,6 +471,10 @@ class GameClient:
         except Exception as e:
             print(f"[Client] 發送 again 發生錯誤：{e}")
 
-
+    # 破紀錄
+    # async def send_final_score(self):
+    #     if self.ws_conn:
+    #         await self.ws_conn.send(f"final:{self.username}:{self.score}")
+    #         # print(f"[Client] 已送出 final 分數：{self.username} / {self.score}")
 
         

@@ -116,12 +116,3 @@ async def handle_special_hit(msg, username):
     else:
         print(f"[GameServer] 玩家 {username} 嘗試打不存在或已消失的特殊地鼠 {mole_id}")
 
-async def handle_final_score(msg):
-    parts = msg.split(":")
-    final_user = parts[1]
-    final_score = int(parts[2])
-    print(f"[GameServer] 玩家 {final_user} 結束遊戲，最終分數 {final_score}")
-
-    if final_score > ct.leaderboard.get(final_user, 0):
-        ct.leaderboard[final_user] = final_score
-        print(f"[GameServer] 更新 {final_user} 的最高分為 {final_score}")
