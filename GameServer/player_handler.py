@@ -35,6 +35,31 @@ async def notify_control_player_offline(username):
     except Exception as e:
         print(f"[GameServer] 通知 ControlServer 玩家 offline 失敗: {e}")
 
+# 通知 ControlServer : 觀察者加入
+async def notify_control_watcher_joined(username):
+    try:
+        async with websockets.connect(ct.CONTROL_SERVER_WS) as ws:
+            await ws.send(json.dumps({
+                "type": "watcher_joined",
+                "username": username,
+                "server_url": ct.MY_GAME_SERVER_WS
+            }))
+            print(f"[GameServer] 已通知 ControlServer 觀戰者 {username} 加入 {ct.MY_GAME_SERVER_WS}")
+    except Exception as e:
+        print(f"[GameServer] 通知 ControlServer 觀戰者加入失敗: {e}")
+
+# 通知 ControlServer： 觀察者離線
+async def notify_control_watcher_offline(username):
+    try:
+        async with websockets.connect(ct.CONTROL_SERVER_WS) as ws:
+            await ws.send(json.dumps({
+                "type": "watcher_offline",
+                "username": username
+            }))
+            print(f"[GameServer] 已通知 ControlServer 玩家 {username} offline")
+    except Exception as e:
+        print(f"[GameServer] 通知 ControlServer 玩家 offline 失敗: {e}")
+
 # 殭屍連線掃描
 async def zombie_player_cleaner():
     while True:
@@ -66,13 +91,27 @@ async def player_handler(websocket):
     # print("[Debug] player_handler() 開始")
     
     msg = await websocket.recv()
+    # print(f"[GameServer] 接收到初始訊息：{msg}")
+
+   # [修正點] 擋掉觀戰者錯送的訊息
+    if msg.startswith('{'):
+        try:
+            data = json.loads(msg)
+            if data.get("type") == "new_slot_available":
+                # print("[忽略] 接收到非玩家的 new_slot_available 訊息 → 關閉連線")
+                await websocket.close()
+                return
+        except:
+            pass  # 忽略解析失敗
 
     # 如果是觀戰者
     if msg == "watch":
         username = f"watcher_{len(ct.watch_players)+1}"  # 自動命名
         if ct.game_phase in ["playing", "gameover", "post_gameover"]:
             ct.watch_players.add(username)
+            ct.player_websockets[username] = websocket  # 觀戰者也要登記websocket
             print(f"[GameServer] 觀戰者加入：{username}")
+            asyncio.create_task(notify_control_watcher_joined(username))
         else:
             print(f"[GameServer] 非 playing 階段，不接受觀戰者 → 關閉連線")
             await websocket.close()
@@ -81,7 +120,7 @@ async def player_handler(websocket):
     # 如果是玩家
     else:
         username = msg
-        ct.connected_players.add(username)
+        ct.connected_players.add(username)      # 
         # 通知 ControlServer：玩家連線
         asyncio.create_task(notify_control_player_joined(username))
         print(f"[GameServer] 玩家加入：{username}")
@@ -90,8 +129,6 @@ async def player_handler(websocket):
     ct.player_websockets[username] = websocket
     ct.post_gameover_cooldown = False
 
-    # 通知 ControlServer：玩家連線
-    # asyncio.create_task(notify_control_player_joined(username))
 
     # 傳送目前的 GameServer 狀態給新加入的玩家
     try:
@@ -139,21 +176,7 @@ async def player_handler(websocket):
                 elif msg.startswith("special_hit:"):
                     await pmh.handle_special_hit(msg, username)
 
-                # 玩家提交最終分數：final:<username>:<score>
-                # elif msg.startswith("final:"):
-                #     await pmh.handle_final_score(msg)
-                #     print(f"[Handler] 收到 final 分數：{msg}")
-
-            
-
-                # 玩家觀戰模式（新增）
-                elif msg == "watch":
-                    if ct.game_phase == "playing":
-                        ct.watch_players.add(username)
-                        print(f"[GameServer] 玩家 {username} 設為觀戰者，目前觀戰人數：{len(ct.watch_players)}")
-                    else:
-                        print(f"[GameServer] 玩家 {username} 嘗試進入觀戰，但目前不是 playing 階段 → 忽略")
-
+                # 玩家在玩一局
                 elif msg == "again":
                     if not ct.again_active:
                         ct.again_active = True
@@ -163,20 +186,38 @@ async def player_handler(websocket):
                     else:
                         print(f"[Replay] 玩家 {username} 點擊 Again，但倒數已啟動，忽略")
 
+                # 推薦有空位的 GameServer
+                elif msg == "get_available_servers":
+                    # 回傳目前 GameServer 知道的推薦清單
+                    await websocket.send(json.dumps({
+                        "type": "available_servers",
+                        "servers": ct.available_servers
+                    }))
+
                 
                 else:   # 未知訊息
                     pass
                     
             except Exception as e:
                 print(f"[GameServer] 玩家 {username} 處理訊息錯誤: {e}，msg={msg}")
+                await websocket.close()
+                return
 
     finally:       # 
         if username:
             try:
+                is_watcher = username in ct.watch_players       # 先判斷是不是觀察者
+
                 ct.connected_players.discard(username)          # 從「目前連線玩家名單」中移除該玩家
                 ct.player_websockets.pop(username, None)        # 移除 WebSocket 映射：這樣 zombie_cleaner 不會繼續嘗試 ping
                 ct.watch_players.discard(username)              # 如果他是觀戰者，也從觀戰名單中移除
-                await notify_control_player_offline(username)   # 通知 ControlServer 該玩家離線，這對排行榜與控制台顯示很重要
+
+                if is_watcher:
+                    ct.watch_players.discard(username)
+                    await notify_control_watcher_offline(username)  # 觀察者離線
+                else:
+                    await notify_control_player_offline(username)   # 玩家離線
+
                 print(f"[GameServer] 玩家 {username} 離線並清除狀態")
                 print(f"[GameServer] 目前在線玩家: {ct.connected_players}")
             except Exception as e:

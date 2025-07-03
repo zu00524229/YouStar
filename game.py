@@ -27,7 +27,7 @@ def show_start_screen(screen):
 async def main():
     pg.init()
     screen = pg.display.set_mode((gs.WIDTH, gs.HEIGHT))
-    pg.display.set_caption("Whack Legends")
+    pg.display.set_caption("打到你鼠")
     show_start_screen(screen)   # 同步執行啟動畫面
 
     # 非同步登入畫面（內部會建立與 ControlServer 的 WebSocket 並登入）

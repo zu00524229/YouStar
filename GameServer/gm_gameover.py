@@ -9,16 +9,16 @@ import GameServer.broadcaster as bc
 async def handle_gameover_phase():
     now = time.time()
     elapsed_gameover = now - ct.gameover_start_time
+    await bc.broadcast_final_leaderboard()      # 更新歷史排行榜
 
     if elapsed_gameover >= 2:
         print("[GameServer] gameover 完成 → 準備回到 post_gameover")
         # 新增：廣播 gameover 給前端
 
-        ct.game_phase = "post_gameover"
-        ct.phase_changed_event.set()
+        ct.game_phase = "post_gameover" 
+        ct.phase_changed_event.set()                
 
-        await bc.broadcast_status_update()
-        await bc.broadcast_final_leaderboard()
+        await bc.broadcast_status_update()  # 顯示當局排行榜
 
 
 # 遊戲結束後 → post_gameover 階段：由玩家操作觸發

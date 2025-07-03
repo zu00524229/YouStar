@@ -46,9 +46,6 @@ async def broadcast_status_update():
             reverse=True
         ),
     }
-    # 除錯：顯示即將廣播的狀態內容
-    # print("[Debug] 廣播狀態：", status_update)
-    # await asyncio.sleep(1)
     
     # 廣播給所有已連線玩家
     await broadcast(status_update)
@@ -78,7 +75,7 @@ async def _safe_send(player, ws_conn, msg):
         # ct.player_websockets.pop(player, None)
 
 
-# 廣播最終 leaderboard（遊戲結束）
+# # 廣播 leaderboard（遊戲結束）
 async def broadcast_final_leaderboard():
     import json
     
@@ -90,13 +87,6 @@ async def broadcast_final_leaderboard():
     leaderboard_result.sort(key=lambda x: x["score"], reverse=True)
     print(f"[Broadcast] 最終 leaderboard 廣播中：{leaderboard_result}")
 
-    # 廣播給所有玩家（事件名稱一致）
-    await broadcast({
-        "event": "final_leaderboard",
-        "leaderboard": leaderboard_result  # <== 使用排序後的 list
-    })
-
- 
 
 # === 比對歷史最高分 ===
     if ct.current_scores:

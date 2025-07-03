@@ -46,7 +46,7 @@ def draw_final_leaderboard(surface, leaderboard_data):
 
 
 def draw_gameover_screen(screen, handle_quit, client, events):
-    
+    # print("[Debug] 畫面中排行榜來源：", client.leaderboard_data[:5])
     if client.game_state not in ["gameover", "post_gameover"]:
         print("[前端] 已進入非 gameover/post_gameover 狀態，跳出畫面")
         return

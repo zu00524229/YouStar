@@ -43,9 +43,9 @@ def render_server_status_ui(surface, server, box_y, mouse_x, mouse_y, index):
     # 回傳畫面區域 + 按鈕
     return box_rect, watch_button_rect
 
-
+# 大廳標題
 def draw_lobby_title_and_hint(surface):
-    title_surface = gs.BIG_FONT_SIZE.render("Game Lobby", True, gs.WHITE)
+    title_surface = gs.CH_MC_TITLE.render("遊戲大廳", True, gs.WHITE)
     surface.blit(title_surface, title_surface.get_rect(center=(gs.WIDTH / 2, 80)))
 
     hint_surface = pg.font.SysFont(None, 28).render("Click to join. Press R to refresh.", True, (150, 150, 150))

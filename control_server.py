@@ -27,12 +27,13 @@ websocket_identity_map = {} # websocket: username or GameServer
 # 中控給 指定GameServer 訊號
 async def broadcast_to_all_gameservers(message: dict):
     # 預設你有一個 gameserver_status 變數儲存所有註冊的伺服器
-    for server_url in gameserver_status.keys():
+    for ws in list(sec.gameserver_websockets):
+        
         try:
-            async with websockets.connect(server_url) as ws:
-                await ws.send(json.dumps(message))
+            await ws.send(json.dumps(message))
+            print(f"[中控] ✅ 傳送給 GameServer 成功：{message}")
         except Exception as e:
-            print(f"[中控] 廣播到 {server_url} 失敗：{e}")
+             print(f"[中控] ❌ 傳送失敗：{e}")
 
 # 中控 自動檢查 GameServer 是否掉線
 async def heartbeat_checker():
@@ -47,6 +48,7 @@ async def heartbeat_checker():
 
 # 處理每一條 websocket 連線（可能是 GameServer 或 Player Login / Player offline）
 async def handle_client(websocket):
+    # print("[Control] 新 websocket 建立連線，等待身份認證...")
     try:
         while True:
             msg = await websocket.recv()
@@ -112,37 +114,43 @@ async def handle_client(websocket):
             # --- GameServer 狀態更新（每秒回報）---
             elif data.get("type") == "update_status":
                 server_url = data.get("server_url")
-                current_players = data["current_players", 0]
-                max_players = data.get("max_players", 6)
+                current_players = data.get("current_players", 0)
+                # max_players = gameserver_status[server_url]["max_players"]
+                # print(f"[中控] 收到狀態更新：{data}")
+
                 
                 # 確保這台 server 已註冊過才更新（避免未初始化錯誤）
                 if server_url not in gameserver_status:
                     print(f"[警告] 未註冊的 GameServer 回報狀態：{server_url}")
                     return
 
-                # 儲存該伺服器狀態 
-                gameserver_status[server_url]["current_players"] = current_players
+                # 更新該 GameServer 狀態
+                gameserver_status[server_url].update({
+                    "current_players": current_players,                     # 更新目前人數
+                    # "current_players": data.get("current_players", 0),      
+                    "watching_players": data.get("watching_players", 0),    # 更新觀戰人數
+                    "leaderboard": data.get("leaderboard", []),             # 更新排行榜
+                    "remaining_time": data.get("remaining_time", 0),        # 更新剩餘遊戲時間
+                    "game_phase": data.get("game_phase"),                   # 更新目前遊戲階段
+                    "last_heartbeat": time.time()                           # 更新心跳時間
+                })
+
+                # 撈出中控自己記錄的 max_players（不要從 GameServer 拿）
+                max_players = gameserver_status[server_url]["max_players"]
+                game_phase = gameserver_status[server_url].get("game_phase", "waiting")
 
                 # 若該台有空位，廣播給其他 GameServer
-                if current_players < max_players:
+                if current_players < max_players and game_phase in ['waiting', 'loading']:
+                    print(f"[中控] ⚠️ 準備廣播推薦空位伺服器：{server_url}")
                     await broadcast_to_all_gameservers({
-                        "event": "new_slot_available",
+                        "type": "new_slot_available",
                         "target_server": server_url,
-                        "player_count": current_players,
-                        "max_players": max_players
+                        "current_players": current_players,
+                        "max_players": max_players,
+                        "game_phase": game_phase
                     })
-
-                # 若該 server_url 有註冊過，就更新它的狀態
-                if server_url in gameserver_status:
-                    gameserver_status[server_url].update({
-                        "current_players": data.get("current_players", 0),      # 更新目前人數
-                        "watching_players": data.get("watching_players", 0),    # 更新觀戰人數
-                        "leaderboard": data.get("leaderboard", []),             # 更新排行榜
-                        "remaining_time": data.get("remaining_time", 0),        # 更新剩餘遊戲時間
-                        "game_phase": data.get("game_phase", "waiting"),        # 更新目前遊戲階段
-                        "last_heartbeat": time.time()                           # 更新心跳時間
-                    })
-                    # print(f"[中控] 更新 GameServer {server_url}：players = {data.get('current_players')}, watching = {data.get('watching_players')}")
+                    print(f"[中控] ✅ 已廣播推薦伺服器：{server_url}")
+                print(f"[中控] 已更新狀態: {server_url} | 玩家: {current_players}/{max_players}")
 
             # 玩家請求 GameServer 列表
             elif data.get("type") == "get_server_list":
@@ -155,7 +163,7 @@ async def handle_client(websocket):
                             "server_url": server_url,       # 伺服器
                             "current_players": status["current_players"],       # 人數
                             "max_players": status["max_players"],               # 最大人數
-                            "game_phase": status.get("game_phase", "waiting"),   # 狀態
+                            "game_phase": status.get("game_phase", "waiting"),  # 狀態
                             "watching_players": status["watching_players"]      # 觀戰
                         })
 
@@ -189,6 +197,21 @@ async def handle_client(websocket):
                         "success": False,
                         "reason": "玩家不在在線狀態表中"
                     }))
+
+            # 觀察者加入
+            elif data.get("type") == "watcher_joined":
+                username = data["username"]
+                server_url = data["server_url"]
+                # player_online_status[username] = server_url   # 不加入因為是觀戰者
+                websocket_identity_map[websocket] = f"Watcher:{username}"  # 加入辨識
+                print(f"[Watcher Join] 觀戰者 {username} 加入 Gameserver → {server_url}")
+
+            # 觀察者離線
+            elif data.get("type") == "watcher_offline":
+                username = data["username"]
+                identity = f"Watcher:{username}"
+                print(f"[Offline] 觀戰者 {username} 離線")
+                # Optional: 如果你建立 watch_online_status 可以從那移除
 
             # 排行榜請求
             elif data.get("type") == "get_leaderboard":
@@ -247,8 +270,14 @@ async def handle_client(websocket):
                 if server_url in gameserver_status:
                     gameserver_status[server_url]["connected"] = False
                     print(f"[Disconnect] GameServer {server_url} 與中控連線中斷")
+                    # 清除該 server 的所有玩家
+                    disconnected_players = [user for user, assigned in player_online_status.items() if assigned == server_url]
+                    for user in disconnected_players:
+                        print(f"[Cleanup] 玩家 {user} 原屬於 {server_url}，因 GameServer 斷線，移除在線狀態")
+                        player_online_status.pop(user)
         else:
-            print("[Disconnect] 未知 websocket 連線中斷（尚未註冊身份）")
+            remote = websocket.remote_address if websocket else "未知"
+            print(f"[Disconnect] 未知 websocket 連線中斷（尚未註冊身份）➜ 來源: {remote}")
 
 
 # 啟動 WebSocket Server + heartbeat_checker

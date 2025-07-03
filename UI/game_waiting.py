@@ -8,7 +8,7 @@ def draw_waiting_screen(screen, events, client):
     ready_clicked = False
     go_lobby_clicked = False    # 初始設回False
     # === 背景文字 ===
-    waiting_surface = gs.FONT_SIZE.render("Waiting for players...", True, gs.WHITE)
+    waiting_surface = gs.CH_MC_SIZE.render("準備啟動...", True, gs.WHITE)
     waiting_rect = waiting_surface.get_rect(center=(gs.WIDTH / 2, gs.HEIGHT / 2 - 100))
     screen.blit(waiting_surface, waiting_rect)
 
@@ -22,7 +22,7 @@ def draw_waiting_screen(screen, events, client):
     ]
 
     for i, line in enumerate(tutorial_text):
-        tutorial_surface = gs.CH_FONT_SIZE.render(line, True, gs.WHITE)
+        tutorial_surface = gs.CH_MC_SIZE.render(line, True, gs.WHITE)
         tutorial_rect = tutorial_surface.get_rect(center=(gs.WIDTH // 2, gs.HEIGHT // 2 - 50 + i * 35))
         screen.blit(tutorial_surface, tutorial_rect)
 

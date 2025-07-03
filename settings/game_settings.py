@@ -11,8 +11,9 @@ BLACK = (0, 0, 0)
 GREEN = (0, 200, 0)
 ORANGE = (245, 78, 0)
 YELLOW = (255, 209, 5)
-HOVAR = (158, 79, 0)
+TITLE_COLOR = (255, 80, 80)     # 活力紅
 
+HOVAR = (158, 79, 0)
 # 視窗設定
 WIDTH = 840
 HEIGHT = 640
@@ -21,6 +22,12 @@ HEIGHT = 640
 CH_FONT_PATH = "assets/fonts/NotoSansTC-VariableFont_wght.ttf"
 CH_FONT_SIZE = pg.font.Font(CH_FONT_PATH, 28)
 CH_FONT_SMALL_SIZE = pg.font.Font(CH_FONT_PATH, 18)
+
+CH_MC_FONT = "assets/fonts/MicrosoftJhengHeiRegular-01.ttf"
+CH_MC_FONT_SMALL =  pg.font.Font(CH_MC_FONT, 18)
+CH_MC_SIZE = pg.font.Font(CH_MC_FONT, 28)
+CH_MC_TITLE = pg.font.Font(CH_MC_FONT, 56)
+CH_MC_BIG = pg.font.Font(CH_MC_FONT, 72)
 
 # 字型大小
 

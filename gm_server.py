@@ -26,6 +26,7 @@ async def register_to_control():
         try:
             async with websockets.connect(ct.CONTROL_SERVER_WS) as ws:
                 print("[GameServer] 已連線中控")
+                # 註冊 GameServer　身分給中控
                 await ws.send(json.dumps({
                     "type": "register_gameserver",
                     "server_url": ct.MY_GAME_SERVER_WS
@@ -33,24 +34,57 @@ async def register_to_control():
 
                 ct.control_ws = ws
 
+                # 背景啟動：遊戲狀態迴圈與回報狀態
                 # 改為 background task → run_status_loop → 狀態更新 & heartbeat
                 asyncio.create_task(run_status_loop(ws))
                 # 傳送伺服器狀態給 中控 (背景工作)
                 asyncio.create_task(send_update_status(ws))
 
 
-                # 從中控接收 highlight 資料
                 while True:
                     try:
                         msg = await ws.recv()       # 接收 highlight 訊息
                         data = json.loads(msg)
-
+                        
+                         
+                        # 從中控接收 highlight 資料 (破紀錄)
                         if data.get("type") == "highlight":
                             print(f"[GameServer] 收到 highlight 指令：{data.get('message')}")
                             await bc.broadcast({
                                 "type": "highlight",
                                 "message": data.get("message")
                             })
+
+
+                        # --- 接收 ControlServer 廣播：其他伺服器有空位 ---
+                        elif data.get("type") == "new_slot_available":
+                            target_server = data.get("target_server")
+                            player_count = data.get("current_players")
+                            max_players = data.get("max_players")
+
+                            # 不要廣播給自己，也不用存推薦清單
+                            if target_server == ct.MY_GAME_SERVER_WS:
+                                continue
+
+                            print(f"[GameServer] 收到其他伺服器空位訊息：{target_server}（{player_count}/{max_players}）")
+
+                            # 廣播給本機觀戰者
+                            for username in ct.watch_players:
+                                ws = ct.player_websockets.get(username)
+                                if ws:
+                                    try:
+                                        await ws.send(json.dumps({
+                                            "type": "new_slot_available",
+                                            "target_server": target_server,      
+                                            "current_players": player_count,    # 傳給前端     
+                                            "max_players": max_players,
+                                            "game_phase": data.get("game_phase", "waiting")     
+                                        }))
+                                        print(f"[GameServer] 已轉發給觀戰者 {username}")
+                                    except:
+                                        print(f"[GameServer] 傳送給觀戰者 {username} 失敗")
+
+
                         else:
                             print(f"[GameServer] 收到未知訊息類型：{data.get('type')}")
                     except Exception as e:
@@ -78,6 +112,7 @@ async def send_update_status(ws):
                 "remaining_time": get_remaining_time(),            # 剩餘時間（僅 playing 階段才有意義）
                 "game_phase": ct.game_phase                        # 當前遊戲階段：waiting/loading/playing/gameover
             }))
+            # print(f"[狀態回報] 當前玩家數: {len(ct.connected_players - ct.watch_players)}")
         except Exception as e:
             print(f"[GameServer] 傳送 update_status 失敗：{e}")
         # 每 1 秒回報一次狀態
@@ -108,6 +143,7 @@ async def run_status_loop(ws):
                 await ws.send(json.dumps({"type": "ping"}))
             except Exception as e:
                 print(f"[GameServer-{loop_id}] 傳送 ping 給中控失敗: {e}")
+                break   # ping 失敗就跳出主循環
 
 
             # --- waiting -- 玩家進入遊戲、觸發進入 loading 階段
@@ -145,12 +181,12 @@ async def run_status_loop(ws):
         print(f"[GameServer] run_status_loop 發生異常: {e}")
 
     # print(f"[STATUS UPDATE] remaining_time: {remaining_game_time}")
-    
+
 # ---------------------------------------------------
 # 啟動主流程
 async def main():
     ct.loop = asyncio.get_event_loop()
-    # 特殊地鼠 async 任務(因為少出現 非同步就夠了)
+    # 特殊地鼠 async 任務
     # asyncio.create_task(special_mole_sender())  # 委派
 
     # 特殊地鼠產生器

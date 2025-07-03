@@ -34,7 +34,7 @@ async def login_screen(screen):
         mouse_pos = pg.mouse.get_pos()
 
         # 遊戲標題
-        title_surface = gs.BIG_FONT_SIZE.render("Whack Legends", True, WHITE)
+        title_surface = gs.CH_MC_BIG.render("打到你鼠", True, gs.TITLE_COLOR)
         title_rect = title_surface.get_rect(center=(gs.WIDTH // 2, 130))
         screen.blit(title_surface, title_rect)
 

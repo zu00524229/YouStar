@@ -5,29 +5,12 @@ import time
 import UI.game_play as pl
 import UI.game_gameover_ui as ov
 import UI.game_waiting as wait
+import UI.game_watch as gw
+import UI.game_highlight as hig
 import settings.game_settings as gs
 import settings.animation as ani
 from UI.client import GameClient
 
-# 破紀錄廣播
-def show_highlight(screen, client):
-    if client.highlight_message and time.time() - client.highlight_time < 5:    # 顯示秒數 5 秒
-        font = gs.CH_FONT_SIZE
-        text_surface = font.render(client.highlight_message, True, (255, 0, 0))  # 紅字
-
-        text_width = text_surface.get_width()
-        text_height = text_surface.get_height()
-
-        # 畫黃色背景框（比文字大一點）
-        bar_height = text_height + 20 # 上下 padding 各 10 px
-        bar_rect = pg.Rect(0, 0, gs.WIDTH, bar_height)
-
-        pg.draw.rect(screen, gs.YELLOW, bar_rect)  # 黃底
-
-        text_x = (gs.WIDTH - text_width) // 2
-        text_y = 10
-        # 把紅字畫上去
-        screen.blit(text_surface, (text_x, text_y))
 
 # loading (等待與加入)
 def draw_loading_screen(screen, current_loading_time):
@@ -41,6 +24,7 @@ def handle_quit():
     pg.quit()
     exit()
 
+# 與大廳 GameServer 連線/段開
 async def safely_close_client(client):
     try:
         if client.ws_conn:
@@ -60,25 +44,13 @@ async def handle_quit_to_lobby(screen, client):
     client.game_state = "lobby"
 
 
-
 # 當前機臺玩家人數
 def player_count(surface, current_players):
     players_surface = gs.SMALL_FONT_SIZE.render(f"Players: {current_players}", True, (255, 255, 0))
     players_rect = players_surface.get_rect(bottomright=(gs.WIDTH - 20, gs.HEIGHT - 20))
     surface.blit(players_surface, players_rect)
 
-# 當前觀戰人數
-def watching_count(surface, watching_players, is_watching):
-    watch_surface = gs.SMALL_FONT_SIZE.render(f"Viewers: {watching_players}", True, (180, 200, 220))  
-    watch_rect = watch_surface.get_rect(bottomleft=(20, gs.HEIGHT - 20))  # 左下角
-    surface.blit(watch_surface, watch_rect)
 
-    # 如果是觀戰者，再顯示提示
-    if is_watching:  #  確保你有這個判斷屬性
-        watching_tip = gs.CH_FONT_SMALL_SIZE.render("觀戰中...", True, (gs.ORANGE))
-        tip_rect = watching_tip.get_rect(bottomleft=(watch_rect.right + 10, gs.HEIGHT - 20))  # 接在右邊
-        surface.blit(watching_tip, tip_rect)
-    
 # 等待GameServer 狀態刷新
 def wait_until_state_not_gameover(client, delay_ms = 100):
     attempts = 0
@@ -107,7 +79,11 @@ async def run_game_loop(screen, client: GameClient):
         wait_until_state_not_gameover(client)
 
     running = True
+    frame_count = 0 
     while running:
+        frame_count += 1
+        blink = (frame_count // 30) % 2 == 0    # 每 30 frame 閃爍一次
+        
         events = pg.event.get()
         for event in events:
             if event.type == pg.QUIT:
@@ -130,9 +106,16 @@ async def run_game_loop(screen, client: GameClient):
         
         if current_game_state in ["waiting", "loading", "playing", "gameover","post_gameover"]:
             player_count(screen, current_players)   # 右下角當前 GameServer 人數
-            watching_count(screen, watching_players, client.is_watching)     # 左下角顯示 Watching
+            gw.watching_count(     # 左下角顯示 Watching
+                surface=screen,
+                watching_players = client.watching_players,
+                is_watching=client.is_watching,
+                available_servers=client.available_servers,
+                blink=blink
+            )     
+            # print(f"[Debug] game_state = {client.game_state}, type = {type(client.game_state)}")
             # 顯示破紀錄提示（限時 3 秒）
-            show_highlight(screen, client)  # 破紀錄廣播
+            hig.show_highlight(screen, client)  # 破紀錄廣播
 
         
         if current_game_state == "waiting":

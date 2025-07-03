@@ -64,7 +64,7 @@ async def show_lobby(screen, client, handle_quit):
     lobby_running = True
 
     server_list = await client.get_server_list()
-    print("[Debug] 目前伺服器列表：", server_list)
+    # print("[Debug] 目前伺服器列表：", server_list)
     last_refresh_time = time.time()
     while lobby_running:
         events = pg.event.get()

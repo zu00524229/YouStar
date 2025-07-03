@@ -15,8 +15,9 @@ class GameClient:
             raise ValueError("GameClient 建立時必須提供 asyncio event loop！")
         self.loop = loop
         # self.async_loop = loop
-        self.highlight_message = ""       # 最新 highlight 訊息字串
-        self.highlight_time = 0           # 收到訊息的時間戳（用於顯示幾秒後清除）
+        self.highlight_message = ""         # 最新 highlight 訊息字串
+        self.highlight_time = 0             # 收到訊息的時間戳（用於顯示幾秒後清除）
+        self.available_servers = []         # 伺服器人數資料
 
 
         self.username = username    # 玩家帳號名稱
@@ -30,7 +31,6 @@ class GameClient:
         self.ready_offer_started = False           # 是否已進入 ready 倒數階段（避免重複點擊 Again）
         self.ready_offer_joined_players = set()    # 有點擊 Ready 的玩家名單（你可選擇顯示）
         self.ready_offer_total_players = 0
-
 
         # 觀戰模式
         self.is_watching = False
@@ -59,7 +59,6 @@ class GameClient:
         self.current_special_mole_duration = 3
         self.current_special_mole_spawn_time = 0
         
-
         # 遊戲整體狀態
         self.game_state = "waiting"
         self.remaining_time = 10        # 遊戲剩餘時間
@@ -72,7 +71,6 @@ class GameClient:
         self.final_sent = False
         self.highlight_message = ""
         self.highlight_timer = 0
-
 
         # 排行榜資料
         self.leaderboard_data = []      # 當局排行榜
@@ -167,6 +165,8 @@ class GameClient:
             # 負責監聽後端所有訊息（地鼠、狀態更新、排行等）
             asyncio.create_task(self.ws_receiver_async())  # 啟動接收 loo (用 create_task() 跑背景）
             self.ws_started = True
+            asyncio.create_task(self.poll_available_servers())  # 接收伺服器空位提示(跑背景)
+
 
         except Exception as e:
             print(f"[前端] 連線 GameServer 失敗: {e}")
@@ -244,23 +244,38 @@ class GameClient:
                             # print(f"[前端] 飛字提示：{mole_name} +{score}")
                             self.show_score_popup(score, mole_id, mole_name)
 
-                    # ----------  (當局)最終排行榜 ----------
-                    elif data.get("event") == "final_leaderboard":
-                        print("[前端] 收到最終排行榜資料")
-                        with self.state_lock:
-                            self.leaderboard_data = data.get("leaderboard", [])
-
                     # -------- again 按鈕 --------
                     elif data.get("event") == "again_timer":
                         self.again_timer = data.get("remaining_time", 0)
                         print(f"[Client] 接收到 again 倒數 : {self.again_timer} 秒")
 
+                    # ------- 破紀錄廣播 ---------
                     elif data.get("type") == "highlight":
                         self.highlight_message = data["message"]
                         self.highlight_time = time.time()
                         print(f"[Client] 收到 highlight：{self.highlight_message}")
                 
-                    
+                    # ------- 遊戲伺服器空位提示 ------
+                    elif data.get("type") == "available_servers":
+                        # 從中控回傳的清單，覆蓋為主（因為是全列表）
+                        self.available_servers = data.get("servers", [])
+
+                    elif data.get("type") == "new_slot_available":
+                        server_url = data.get("target_server")
+                        player_count = data.get("current_players")
+                        max_players = data.get("max_players")
+                        game_phase = data.get("game_phase", "waiting")
+                        
+                        if server_url not in [s["server_url"] for s in self.available_servers]:
+                            self.available_servers.append({
+                                "server_url": server_url,
+                                "current_players": player_count,
+                                "max_players": max_players,
+                                "game_phase": game_phase
+                            })
+                            print(f"[前端] 收到推薦伺服器：{server_url}（{player_count}/{max_players}）")
+
+
                     # ----------  遊戲狀態更新（最常收到 ----------
                     elif data.get("event") == "status_update":
                         # print(f"[前端] 收到 status_update：{data}")
@@ -272,6 +287,7 @@ class GameClient:
                             self.current_players = data.get("current_players", 0)
                             self.watching_players = data.get("watching_players", 0)     # 觀戰
                             self.leaderboard = data.get("leaderboard", [])
+                            
 
                             # 若狀態從非 playing ➜ playing，要清空飛字殘留
                             if self.game_state != "playing" and game_phase == "playing":
@@ -280,9 +296,11 @@ class GameClient:
                                 # print("[Client] 狀態切換為 playing，清空 score")
                                 self.score = 0   # 清除分數
 
-                            # 更新即時排行榜資料
-                            # if self.leaderboard:
-                            self.leaderboard_data = self.leaderboard
+                            if game_phase not in ["gameover", "post_gameover"]:
+                                # 更新即時排行榜資料
+                                if self.leaderboard:
+                                    self.leaderboard_data = self.leaderboard
+                            
                                 # print("[前端] 接收到即時 leaderboard 資料：", self.leaderboard)
                             
                             # 更新 client 狀態（會影響畫面顯示）    
@@ -326,7 +344,7 @@ class GameClient:
         # 記錄已啟動 + 印出訊息
         self.ws_started = True
         ct.ws_receiver_start_count += 1
-        print(f"[Debug] 第 {ct.ws_receiver_start_count} 次啟動 ws_receiver")
+        # print(f"[Debug] 第 {ct.ws_receiver_start_count} 次啟動 ws_receiver")
 
 
     # ---------- Lobby 切換與連線重置 ----------
@@ -376,7 +394,7 @@ class GameClient:
     # 遊戲開始前 Ready 按鈕 
     def send_ready(self):
         async def _send():
-            print("[Debug] send_ready() 被呼叫（內層 async）")
+            # print("[Debug] send_ready() 被呼叫（內層 async）")
             try:
                 msg = "ready"
                 # 嘗試使用 open 屬性判斷是否連線中（新版本支持）
@@ -385,11 +403,11 @@ class GameClient:
                     return
                 
                 is_open = getattr(self.ws_conn, "open", None)
-                print(f"[Debug] ws_conn = {self.ws_conn}, open = {is_open if is_open is not None else '未知或不支援'}")
+                # print(f"[Debug] ws_conn = {self.ws_conn}, open = {is_open if is_open is not None else '未知或不支援'}")
 
                 # print(f"[Debug] ws_conn = {self.ws_conn}, open = {getattr(self.ws_conn, 'open', '未知')}")
                 await self.ws_conn.send(msg)
-                print(f"[Debug] client.send_ready()：已送出訊息 {msg}")
+                # print(f"[Debug] client.send_ready()：已送出訊息 {msg}")
             except Exception as e:
                 print(f"[Debug] client.send_ready() 發送錯誤：{e}")
 
@@ -471,10 +489,14 @@ class GameClient:
         except Exception as e:
             print(f"[Client] 發送 again 發生錯誤：{e}")
 
-    # 破紀錄
-    # async def send_final_score(self):
-    #     if self.ws_conn:
-    #         await self.ws_conn.send(f"final:{self.username}:{self.score}")
-    #         # print(f"[Client] 已送出 final 分數：{self.username} / {self.score}")
+    # 傳送伺服器空房提示
+    async def poll_available_servers(self):
+        while True:
+            try:
+                await self.send("get_available_servers")
+            except:
+                pass
+            await asyncio.sleep(5)  # 每 5 秒更新一次
+
 
         

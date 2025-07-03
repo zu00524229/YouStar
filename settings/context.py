@@ -9,6 +9,8 @@ loop = None  # 這行只是空變數，無任何影響
 shared_client = None
 ws_receiver_start_count = 0 # 檢查殭屍連線
 control_ws = None  #  用於廣播破紀錄線
+available_servers = []  # 接收來自中控的 new_slot_available 廣播
+
 
 # 配置
 CONTROL_SERVER_WS = "ws://127.0.0.1:8765"
@@ -36,7 +38,7 @@ again_active = False         # 是否正在 replay 倒數中
 again_start_time = None      # 倒數起始時間（可選）
 
 # 遊戲計時
-loading_time = 10                        # loading 倒數秒數
+loading_time = 5                        # loading 倒數秒數
 loading_start_time = None          
 
 ready_offer_active = False              # 檢查 是否正在提供 ready 選項給玩家
@@ -48,7 +50,7 @@ replay_offer_active = False
 replay_start_time = 0
 
 
-GAME_DURATION = 60                       # 遊戲時間 60s
+GAME_DURATION = 30                       # 遊戲時間 60s
 MOLE_SPAWN_INTERVAL = 1.5                # 地鼠出現頻率（秒）
 MOLE_SPAWN_INTERVAL_RANGE = (0.8, 1.5)   # 地鼠隨機秒數
 game_start_time = None                  
